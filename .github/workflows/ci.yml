@@ -28,6 +28,7 @@ jobs:
           curl --fail --silent --show-error http://localhost:8080/
           curl --fail --silent --show-error http://localhost:8080/api/health
           curl --fail --silent --show-error http://localhost:8080/api/info
+          curl --fail --silent --show-error http://localhost:8080/api/experiments
           curl --fail --silent --show-error http://localhost:8080/openapi.json
       - name: Container logs
         if: always()

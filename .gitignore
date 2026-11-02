@@ -14,6 +14,7 @@ local.properties
 
 # Dados, pesos e resultados locais
 /data/
+/services/api/data/
 /modelos/
 /runtime/
 *.mp4

@@ -50,7 +50,7 @@ h1 { margin: 0; color: var(--ink); font-size: clamp(32px, 5vw, 42px); font-weigh
 .refresh-button:hover:not(:disabled) { border-color: #91b5b2; background: #f8fcfb; }
 .refresh-button:active:not(:disabled) { transform: translateY(1px); }
 .refresh-button:focus-visible, a:focus-visible { outline: 3px solid #61b7ac; outline-offset: 3px; }
-.refresh-button:disabled { color: #71838a; cursor: wait; }
+.refresh-button:disabled { color: #71838a; cursor: not-allowed; }
 .refresh-icon { width: 17px; height: 17px; }
 .is-spinning { animation: spin 1.2s linear infinite; }
 
@@ -130,3 +130,20 @@ h1 { margin: 0; color: var(--ink); font-size: clamp(32px, 5vw, 42px); font-weigh
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; scroll-behavior: auto !important; }
 }
+
+.experiments { margin-bottom: 18px; }
+.experiments .heading-row { margin: 0 0 20px; align-items: center; }
+.experiments h2 { margin: 0; font-size: 20px; }
+.experiments p { color: var(--muted); font-size: 13px; }
+.experiments form label { display: block; margin: 14px 0; font-size: 13px; font-weight: 600; }
+.experiments input, .experiments textarea { display: block; width: 100%; margin-top: 6px; padding: 10px; border: 1px solid #c7d5d8; border-radius: 6px; font: inherit; }
+.experiments textarea { min-height: 90px; resize: vertical; }
+.experiment-actions { display: flex; gap: 10px; flex-wrap: wrap; }
+.experiment-list { padding: 0; list-style: none; }
+.experiment-list li { display: flex; justify-content: space-between; align-items: center; gap: 10px; padding: 12px 0; border-bottom: 1px solid var(--line); }
+.experiment-list p { margin: 4px 0; }
+.experiments .experiment-error { color: #984a39; }
+.experiments video { display: block; max-width: 100%; max-height: 320px; }
+
+.experiments .experiment-pending { color: #785329; font-size: 13px; }
+.experiment-pending ul { margin: 6px 0 12px; padding-left: 20px; }
