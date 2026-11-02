@@ -2,6 +2,7 @@
 import hashlib
 import json
 import secrets
+import shutil
 import subprocess
 import tempfile
 import os
@@ -122,6 +123,27 @@ def list_drafts(limit: int = Query(default=50, ge=1, le=100), offset: int = Quer
 def get_draft(experiment_id: str) -> dict:
     with connect() as db:
         return representation(find(db, experiment_id))
+
+
+@router.delete("/{experiment_id}", status_code=204)
+def delete_experiment(experiment_id: str) -> None:
+    root = Path(os.environ.get("EYE_TRACKER_DATA_DIR", "./data"))
+    with connect() as db:
+        db.execute("BEGIN IMMEDIATE")
+        row = find(db, experiment_id)
+        sessions = db.execute("SELECT id FROM sessions WHERE experiment_id = ?", (experiment_id,)).fetchall()
+        runs = db.execute("SELECT id, status FROM processing_runs WHERE session_id IN (SELECT id FROM sessions WHERE experiment_id = ?)", (experiment_id,)).fetchall()
+        if any(run["status"] in ("queued", "running") for run in runs):
+            raise HTTPException(409, "Aguarde o processamento das coletas antes de apagar o experimento.")
+        db.execute("DELETE FROM processing_runs WHERE session_id IN (SELECT id FROM sessions WHERE experiment_id = ?)", (experiment_id,))
+        db.execute("DELETE FROM sessions WHERE experiment_id = ?", (experiment_id,))
+        db.execute("DELETE FROM experiments WHERE id = ?", (experiment_id,))
+    if row["stimulus"]:
+        (root / "videos" / json.loads(row["stimulus"])["path"]).unlink(missing_ok=True)
+    for session in sessions:
+        shutil.rmtree(root / "sessions" / session["id"], ignore_errors=True)
+    for run in runs:
+        shutil.rmtree(root / "runs" / run["id"], ignore_errors=True)
 
 
 @router.patch("/{experiment_id}")

@@ -159,6 +159,8 @@ async def receive_files(session_id: str, video_sha256: str = Form(), events_sha2
         with connect() as db:
             db.execute("BEGIN IMMEDIATE")
             current = db.execute("SELECT * FROM sessions WHERE id = ?", (session_id,)).fetchone()
+            if not current:
+                raise HTTPException(404, "Sessão não encontrada.")
             if current["video_hash"]:
                 if (current["video_hash"], current["events_hash"]) != (video_sha256, events_sha256):
                     raise HTTPException(409, "Sessão já recebida com outros arquivos.")

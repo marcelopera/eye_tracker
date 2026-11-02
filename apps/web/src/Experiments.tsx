@@ -60,6 +60,21 @@ export default function Experiments() {
     } catch (err) { setError(controller.signal.aborted ? 'A API demorou para responder. Confira o estado do experimento e tente novamente.' : err instanceof Error ? err.message : 'Falha na operação.'); }
     finally { window.clearTimeout(timeout); setBusy(false); setPublishing(false); }
   }
+  async function remove() {
+    if (!selected || busy || !window.confirm(`Apagar o experimento "${selected.name}"? Todas as coletas, arquivos e análises vinculados também serão apagados. Esta ação não pode ser desfeita.`)) return;
+    setBusy(true); setError('');
+    try {
+      const response = await fetch(`/api/experiments/${selected.id}`, { method: 'DELETE' });
+      if (!response.ok) {
+        const data = await response.json();
+        throw new Error(typeof data.detail === 'string' ? data.detail : 'Não foi possível apagar o experimento.');
+      }
+      setSelected(null); setEditing(false);
+      if (offset > 0 && items.length === 1) setOffset(offset - 50);
+      else await load();
+    } catch (err) { setError(err instanceof Error ? err.message : 'Não foi possível apagar o experimento.'); }
+    finally { setBusy(false); }
+  }
   function upload() {
     if (!selected || !file || busy) return;
     setBusy(true); setError(''); setProgress(0);
@@ -100,6 +115,7 @@ export default function Experiments() {
         {selected.pending.length > 0 && <div className="experiment-pending" role="status"><strong>Para publicar:</strong><ul>{selected.pending.map(item => <li key={item}>{item}</li>)}</ul></div>}
         {published ? <p role="status">Publicado. Código: <strong>{selected.code}</strong></p> : <button className="refresh-button" type="button" disabled={busy || selected.pending.length > 0} onClick={() => void action('publish', 'POST')}>{publishing ? 'Publicando…' : 'Publicar experimento'}</button>}
         {published && <Sessions key={selected.id} experimentId={selected.id} />}
+        <p><button className="refresh-button delete-button" type="button" disabled={busy} onClick={() => void remove()}>Apagar experimento</button></p>
       </>}
       <p><button className="refresh-button" type="button" disabled={busy} onClick={() => { setEditing(false); setError(''); void load(); }}>Voltar à lista</button></p>
     </> : <>
