@@ -1,3 +1,4 @@
+import Experiments from './Experiments';
 import { useCallback, useEffect, useRef, useState } from 'react';
 
 type Health = {
@@ -161,6 +162,8 @@ function App() {
             {state === 'loading' ? 'Atualizando' : 'Recarregar'}
           </button>
         </div>
+
+        <Experiments />
 
         <section className={`connection-card ${state}`} aria-labelledby="connection-heading">
           <div className="connection-main">

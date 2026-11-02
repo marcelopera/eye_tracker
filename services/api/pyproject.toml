@@ -5,6 +5,7 @@ description = "API mínima para a base de coleta e processamento de olhar."
 requires-python = ">=3.12,<3.13"
 dependencies = [
     "fastapi==0.162.0",
+    "python-multipart>=0.0.20,<1",
     "uvicorn[standard]==0.54.0",
 ]
 

@@ -15,6 +15,7 @@ COPY pyproject.toml uv.lock ./
 
 FROM base AS test
 
+RUN apt-get update && apt-get install -y --no-install-recommends ffmpeg && rm -rf /var/lib/apt/lists/*
 COPY app ./app
 COPY tests ./tests
 RUN uv sync --frozen --group dev --no-install-project
@@ -22,11 +23,14 @@ RUN uv run --frozen --group dev python -m pytest
 
 FROM base AS runtime
 
+RUN apt-get update && apt-get install -y --no-install-recommends ffmpeg && rm -rf /var/lib/apt/lists/*
 RUN uv sync --frozen --no-dev --no-install-project
 
 COPY app ./app
 
-RUN useradd --create-home --uid 10001 --user-group app
+RUN useradd --create-home --uid 10001 --user-group app \
+    && mkdir -p /data/tmp && chown -R app:app /data
+ENV EYE_TRACKER_DATA_DIR=/data TMPDIR=/data/tmp
 USER app
 
 EXPOSE 8000
