@@ -54,3 +54,5 @@ docker build --target test -t eye-tracker-api-test services/api
 O formato recebido é o `sessao.json` original do protótipo com `face.mp4`, não um manifesto v1. Não há dados suficientes para afirmar sincronização, perfil físico ou validade científica. A API não autentica clientes; o HTTP local não cifra os dados. Use dados sintéticos em rede controlada até haver autenticação e TLS.
 
 `GET /api/experiments/{id}/sessions` lista as sessões do experimento, com paginação por `limit` (1 a 100, padrão 50) e `offset`; `GET /api/sessions/{id}` consulta uma sessão. `receipt_status` distingue cadastro pendente de arquivos recebidos e `processing_status` é sempre `unavailable`: nenhuma inferência é executada. O recebimento não comprova sincronização nem qualidade científica.
+
+`GET /api/sessions/{id}/video` e `/events` disponibilizam os arquivos originais recebidos para inspeção; não são resultados de inferência. Assim como as demais rotas, não exigem autenticação.

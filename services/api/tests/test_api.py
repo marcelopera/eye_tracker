@@ -113,6 +113,8 @@ def test_session_receipt_and_retry(tmp_path, monkeypatch):
     assert len(listed) == 1
     assert listed[0]["id"] == session["id"] and listed[0]["participant_code"] == "P01"
     assert listed[0]["receipt_status"] == "pending" and listed[0]["processing_status"] == "unavailable"
+    assert client.get(f"/api/sessions/{session['id']}/video").status_code == 409
+    assert client.get(f"/api/sessions/{session['id']}/events").status_code == 409
     assert client.get(f"/api/sessions/{session['id']}").json() == listed[0]
     assert client.get(url + "/sessions?limit=1&offset=1").json() == []
     assert client.get(url + "/sessions?limit=0").status_code == 422
@@ -130,6 +132,8 @@ def test_session_receipt_and_retry(tmp_path, monkeypatch):
     assert client.put(upload_url, data={**hashes, "events_sha256": "0" * 64}, files=files).status_code == 422
     assert client.put(upload_url, data=hashes, files=files).json()["received"] is True
     assert client.get(f"/api/sessions/{session['id']}").json()["receipt_status"] == "received"
+    assert client.get(f"/api/sessions/{session['id']}/events").content == metadata
+    assert client.get(f"/api/sessions/{session['id']}/video", headers={"Range": "bytes=0-9"}).content == video_bytes[:10]
     assert client.put(upload_url, data=hashes, files=files).json()["received"] is True
     assert client.put(upload_url, data={**hashes, "video_sha256": "0" * 64}, files=files).status_code == 409
     assert (tmp_path / "sessions" / session["id"] / "face.mp4").read_bytes() == video_bytes

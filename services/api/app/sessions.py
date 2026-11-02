@@ -10,6 +10,7 @@ from pathlib import Path
 from uuid import UUID, uuid4
 
 from fastapi import APIRouter, File, Form, HTTPException, Query, UploadFile
+from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field
 
 from app.experiments import connect, find, representation
@@ -54,6 +55,30 @@ def get_session(session_id: str):
         if not row:
             raise HTTPException(404, "Sessão não encontrada.")
         return session_view(row)
+
+
+def received_file(session_id: str, name: str, hash_column: str) -> Path:
+    with connect() as db:
+        row = db.execute("SELECT * FROM sessions WHERE id = ?", (session_id,)).fetchone()
+        if not row:
+            raise HTTPException(404, "Sessão não encontrada.")
+        if not row[hash_column]:
+            raise HTTPException(409, "Arquivo ainda não recebido.")
+        # Use the server-generated ID from the database, never the request as a path.
+        path = Path(os.environ.get("EYE_TRACKER_DATA_DIR", "./data")) / "sessions" / row["id"] / name
+    if not path.is_file():
+        raise HTTPException(404, "Arquivo da sessão indisponível no servidor.")
+    return path
+
+
+@router.get("/sessions/{session_id}/video")
+def session_video(session_id: str):
+    return FileResponse(received_file(session_id, "face.mp4", "video_hash"), media_type="video/mp4")
+
+
+@router.get("/sessions/{session_id}/events")
+def session_events(session_id: str):
+    return FileResponse(received_file(session_id, "sessao.json", "events_hash"), media_type="application/json")
 
 
 @router.get("/published-experiments/{code}")

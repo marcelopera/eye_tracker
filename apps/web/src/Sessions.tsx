@@ -29,6 +29,11 @@ export default function Sessions({ experimentId }: { experimentId: string }) {
         <strong>Participante: {session.participant_code}</strong>
         <p>Sessão: {session.id}</p><p>Identificador local: {session.local_id}</p>
         <p>{session.receipt_status === 'received' ? 'Arquivos recebidos' : 'Aguardando arquivos'} · Processamento indisponível</p>
+        {session.receipt_status === 'received' && <details><summary>Inspecionar arquivos originais</summary>
+          <p>Vídeo da câmera e eventos originais do protótipo. Os relógios não estão sincronizados com o estímulo; esses arquivos não são resultados de olhar.</p>
+          <video controls preload="none" src={`/api/sessions/${encodeURIComponent(session.id)}/video`} />
+          <p><a href={`/api/sessions/${encodeURIComponent(session.id)}/events`} download={`sessao-${session.id}.json`}>Baixar eventos originais</a></p>
+        </details>}
       </div></li>)}</ul>}
     <div className="experiment-actions">
       <button className="refresh-button" type="button" onClick={refresh} disabled={loading}>Atualizar coletas</button>
