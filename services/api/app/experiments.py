@@ -51,6 +51,7 @@ def connect():
             db.execute(f"ALTER TABLE experiments ADD COLUMN {column}")
         db.execute("CREATE UNIQUE INDEX experiment_code ON experiments(code)")
         db.execute("PRAGMA user_version = 2")
+    db.execute("CREATE TABLE IF NOT EXISTS sessions (id TEXT PRIMARY KEY, local_id TEXT UNIQUE NOT NULL, experiment_id TEXT NOT NULL, participant_code TEXT NOT NULL, video_hash TEXT, events_hash TEXT)")
     db.commit()
     try:
         with db:

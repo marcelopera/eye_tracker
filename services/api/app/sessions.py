@@ -9,7 +9,7 @@ import tempfile
 from pathlib import Path
 from uuid import UUID, uuid4
 
-from fastapi import APIRouter, File, Form, HTTPException, UploadFile
+from fastapi import APIRouter, File, Form, HTTPException, Query, UploadFile
 from pydantic import BaseModel, Field
 
 from app.experiments import connect, find, representation
@@ -21,6 +21,39 @@ class SessionInput(BaseModel):
     experiment_id: str
     local_id: str
     participant_code: str = Field(min_length=1, max_length=200)
+
+
+class SessionView(BaseModel):
+    id: str
+    experiment_id: str
+    local_id: str
+    participant_code: str
+    receipt_status: str
+    processing_status: str
+
+
+def session_view(row) -> SessionView:
+    return SessionView(id=row["id"], experiment_id=row["experiment_id"], local_id=row["local_id"],
+                       participant_code=row["participant_code"],
+                       receipt_status="received" if row["video_hash"] and row["events_hash"] else "pending",
+                       processing_status="unavailable")
+
+
+@router.get("/experiments/{experiment_id}/sessions", response_model=list[SessionView])
+def list_sessions(experiment_id: str, limit: int = Query(50, ge=1, le=100), offset: int = Query(0, ge=0)):
+    with connect() as db:
+        find(db, experiment_id)
+        rows = db.execute("SELECT * FROM sessions WHERE experiment_id = ? ORDER BY rowid DESC LIMIT ? OFFSET ?", (experiment_id, limit, offset)).fetchall()
+        return [session_view(row) for row in rows]
+
+
+@router.get("/sessions/{session_id}", response_model=SessionView)
+def get_session(session_id: str):
+    with connect() as db:
+        row = db.execute("SELECT * FROM sessions WHERE id = ?", (session_id,)).fetchone()
+        if not row:
+            raise HTTPException(404, "Sessão não encontrada.")
+        return session_view(row)
 
 
 @router.get("/published-experiments/{code}")
@@ -42,7 +75,6 @@ def create_session(data: SessionInput):
     if not participant:
         raise HTTPException(422, "Informe o código do participante.")
     with connect() as db:
-        db.execute("CREATE TABLE IF NOT EXISTS sessions (id TEXT PRIMARY KEY, local_id TEXT UNIQUE NOT NULL, experiment_id TEXT NOT NULL, participant_code TEXT NOT NULL, video_hash TEXT, events_hash TEXT)")
         row = find(db, data.experiment_id)
         if not row["code"]:
             raise HTTPException(409, "Experimento não publicado.")
@@ -62,7 +94,6 @@ async def receive_files(session_id: str, video_sha256: str = Form(), events_sha2
         if not re.fullmatch(r"[0-9a-f]{64}", digest):
             raise HTTPException(422, "SHA-256 inválido.")
     with connect() as db:
-        db.execute("CREATE TABLE IF NOT EXISTS sessions (id TEXT PRIMARY KEY, local_id TEXT UNIQUE NOT NULL, experiment_id TEXT NOT NULL, participant_code TEXT NOT NULL, video_hash TEXT, events_hash TEXT)")
         row = db.execute("SELECT * FROM sessions WHERE id = ?", (session_id,)).fetchone()
         if not row:
             raise HTTPException(404, "Sessão não encontrada.")
