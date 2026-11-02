@@ -7,6 +7,7 @@ import os
 from pathlib import Path
 import subprocess
 import threading
+import tempfile
 from uuid import uuid4
 
 from fastapi import APIRouter, HTTPException, Query
@@ -41,6 +42,43 @@ def enabled():
 
 class RunInput(BaseModel):
     config: dict = Field(description="Configuração v1 descrita em docs/pipeline.md; medidas ausentes devem ser null.")
+
+
+class PreparationInput(BaseModel):
+    settings: dict = Field(default_factory=dict)
+
+
+@router.post("/sessions/{session_id}/analysis-config")
+def collection_config(session_id: str, data: PreparationInput):
+    import hashlib
+    from app.sessions import received_file
+    source = received_file(session_id, "sessao.json", "events_hash")
+    with connect() as db:
+        expected = db.execute("SELECT events_hash FROM sessions WHERE id=?", (session_id,)).fetchone()[0]
+    with source.open("rb") as stream:
+        if hashlib.file_digest(stream, "sha256").hexdigest() != expected:
+            raise HTTPException(409, "Integridade dos metadados da coleta divergente.")
+    if not enabled():
+        raise HTTPException(503, "Runtime de processamento não instalado.")
+    try:
+        encoded = json.dumps(data.settings, allow_nan=False)
+    except (ValueError, TypeError):
+        raise HTTPException(422, "Medidas inválidas.")
+    if len(encoded) > 20000:
+        raise HTTPException(413, "Medidas excedem 20 KB.")
+    directory, python = runtime()
+    try:
+        with tempfile.TemporaryDirectory() as temporary:
+            settings = Path(temporary) / "settings.json"
+            settings.write_text(encoded, encoding="utf-8")
+            result = subprocess.run([str(python), str(directory / "itracker.py"), "prepare", "--events", str(source.resolve()),
+                "--settings", str(settings)], capture_output=True, text=True, timeout=30,
+                env={**os.environ, "OMP_NUM_THREADS": "1", "OPENBLAS_NUM_THREADS": "1"})
+            if result.returncode:
+                raise HTTPException(422, "Não foi possível gerar a configuração: " + result.stderr[-3000:])
+            return json.loads(result.stdout)
+    except (OSError, ValueError, subprocess.TimeoutExpired):
+        raise HTTPException(422, "Não foi possível ler a instrumentação da coleta.")
 
 
 class RunView(BaseModel):
@@ -164,7 +202,7 @@ def sample_at(run_id: str, time_ms: float = Query(ge=0, allow_inf_nan=False)):
     if not sync:
         return {"sample": None}
     # Only associate media intervals actually declared as presented; never extrapolate.
-    intervals = [f for f in sync["presented_frames"] if f["media_time_ms"] <= time_ms < f["media_time_ms"] + f["duration_ms"]]
+    intervals = [f for f in sync["presented_frames"] if f["media_time_ms"] <= time_ms < f["media_time_ms"] + (f.get("media_duration_ms") or f["duration_ms"])]
     if not intervals:
         return {"sample": None}
     stamps = {f["media_time_ms"] for f in intervals}

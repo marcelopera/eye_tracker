@@ -20,7 +20,15 @@ import android.view.WindowManager
 import android.widget.FrameLayout
 import android.widget.LinearLayout
 import android.widget.TextView
-import android.widget.VideoView
+import android.os.Build
+import androidx.media3.common.MediaItem
+import androidx.media3.common.Player
+import androidx.media3.common.PlaybackException
+import androidx.media3.common.util.UnstableApi
+import androidx.media3.exoplayer.ExoPlayer
+import androidx.media3.ui.PlayerView
+import br.com.marcelopera.eye_tracking.data.SessionEvent
+import br.com.marcelopera.eye_tracking.session.RenderedFrames
 import androidx.activity.OnBackPressedCallback
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
@@ -61,6 +69,7 @@ import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withContext
 import kotlin.coroutines.resume
 
+@androidx.annotation.OptIn(UnstableApi::class)
 class MainActivity : AppCompatActivity(), SessionHost {
 
     private val viewModel: SessionViewModel by viewModels {
@@ -77,6 +86,12 @@ class MainActivity : AppCompatActivity(), SessionHost {
     private var preparationScreen: PreparationScreen? = null
     private var completionScreen: CompletionScreen? = null
     private var sessionContent: FrameLayout? = null
+    private val measurements = mutableListOf<SessionEvent>()
+    override fun telemetry(): List<SessionEvent> = measurements.toList()
+
+    private fun measured(name: String, time: Long, data: JSONObject) {
+        measurements += SessionEvent(name, time, "frameTimeNanos", data.toString())
+    }
 
     private val cameraPermission = registerForActivityResult(
         ActivityResultContracts.RequestPermission(),
@@ -187,6 +202,14 @@ class MainActivity : AppCompatActivity(), SessionHost {
     }
 
     override suspend fun showPreparing() {
+        measurements.clear()
+        check(!isInMultiWindowMode) { "A coleta precisa da tela inteira do aparelho." }
+        @Suppress("DEPRECATION")
+        val bounds = android.util.DisplayMetrics().also { windowManager.defaultDisplay.getRealMetrics(it) }
+        measured("display_v1", System.nanoTime(), JSONObject()
+            .put("screen_width_px", bounds.widthPixels).put("screen_height_px", bounds.heightPixels)
+            .put("manufacturer", Build.MANUFACTURER).put("model", Build.MODEL)
+            .put("sdk", Build.VERSION.SDK_INT))
         val content = ensureSessionContent()
         content.removeAllViews()
         content.setBackgroundColor(color(R.color.surface))
@@ -223,7 +246,13 @@ class MainActivity : AppCompatActivity(), SessionHost {
         awaitNonEmptyLayout(content)
         dot.x = (x * content.width - size / 2.0).toFloat()
         dot.y = (y * content.height - size / 2.0).toFloat()
-        return TargetDisplay(awaitNextFrame(), content.width, content.height)
+        val committed = Build.VERSION.SDK_INT >= 29 && content.isHardwareAccelerated
+        val time = if (committed) awaitFrameCommit(content) else awaitNextFrame()
+        val location = IntArray(2)
+        content.getLocationOnScreen(location)
+        return TargetDisplay(time, content.width, content.height,
+            location[0] + dot.x.toDouble() + size / 2.0,
+            location[1] + dot.y.toDouble() + size / 2.0, committed)
     }
 
     override suspend fun showRest(): Long {
@@ -237,42 +266,68 @@ class MainActivity : AppCompatActivity(), SessionHost {
         val content = ensureSessionContent()
         content.removeAllViews()
         content.setBackgroundColor(Color.BLACK)
-        val player = VideoView(this@MainActivity)
-        content.addView(player, MATCH_PARENT, MATCH_PARENT)
-
-        val prepared = CompletableDeferred<Boolean>()
-        val end = CompletableDeferred<PlaybackEnd>()
-        player.setOnPreparedListener { prepared.complete(true) }
-        player.setOnCompletionListener { end.complete(PlaybackEnd.Completed) }
-        player.setOnErrorListener { _, what, extra ->
-            if (!prepared.isCompleted) prepared.complete(false)
-            end.complete(PlaybackEnd.Failed(what, extra))
-            true
+        val sourceTimes = withContext(Dispatchers.IO) {
+            val extractor = android.media.MediaExtractor()
+            try {
+                extractor.setDataSource(this@MainActivity, uri.toUri(), null)
+                val track = (0 until extractor.trackCount).first {
+                    extractor.getTrackFormat(it).getString(android.media.MediaFormat.KEY_MIME)?.startsWith("video/") == true
+                }
+                extractor.selectTrack(track)
+                val times = mutableSetOf<Long>()
+                while (extractor.sampleTime >= 0) {
+                    check(times.size < 100000) { "Estímulo excede o limite de quadros" }
+                    times += extractor.sampleTime
+                    extractor.advance()
+                }
+                times.sorted()
+            } finally { extractor.release() }
         }
-
-        try {
-            player.setVideoURI(uri.toUri())
-            if (!prepared.await()) {
-                val failure = end.await() as? PlaybackEnd.Failed ?: PlaybackEnd.Failed(-1, -1)
-                VideoPlayback.Failed(failure.what, failure.extra)
-            } else {
-                player.start()
-                onStarted(awaitNextFrame())
-                when (val outcome = end.await()) {
-                    PlaybackEnd.Completed -> {
-                        val endFrameNanos = awaitNextFrame()
-                        VideoPlayback.Finished(endFrameNanos)
+        measured("stimulus_timing_v1", System.nanoTime(), JSONObject().put("media_pts_us", org.json.JSONArray(sourceTimes)))
+        val end = CompletableDeferred<Boolean>()
+        val view = PlayerView(this@MainActivity).apply { useController = false }
+        content.addView(view, FrameLayout.LayoutParams(MATCH_PARENT, MATCH_PARENT))
+        var first = true
+        var observing = true
+        val factory = RenderedFrames(this@MainActivity) { pts, time ->
+            if (observing) {
+                measured("presented_frame_v1", time, JSONObject().put("media_time_us", pts))
+                if (first) {
+                    first = false
+                    onStarted(time)
+                    val surface = view.videoSurfaceView
+                    val location = IntArray(2)
+                    surface?.getLocationOnScreen(location)
+                    val size = view.player?.videoSize
+                    if (surface != null && size != null && surface.width > 0 && surface.height > 0) {
+                        measured("stimulus_geometry_v1", time, JSONObject()
+                            .put("x_px", location[0]).put("y_px", location[1])
+                            .put("width_px", surface.width).put("height_px", surface.height)
+                            .put("video_width_px", size.width).put("video_height_px", size.height)
+                            .put("rotation_degrees", size.unappliedRotationDegrees))
                     }
-
-                    is PlaybackEnd.Failed -> VideoPlayback.Failed(outcome.what, outcome.extra)
                 }
             }
+        }
+        val player = ExoPlayer.Builder(this@MainActivity, factory).build()
+        player.setVideoFrameMetadataListener { mediaTimeUs, _, _, _ -> factory.metadata(mediaTimeUs) }
+        view.player = player
+        player.addListener(object : Player.Listener {
+            override fun onPlaybackStateChanged(playbackState: Int) {
+                if (playbackState == Player.STATE_ENDED) end.complete(true)
+            }
+            override fun onPlayerError(error: PlaybackException) { end.complete(false) }
+        })
+        try {
+            player.setMediaItem(MediaItem.fromUri(uri))
+            player.prepare()
+            player.play()
+            if (end.await()) VideoPlayback.Finished(System.nanoTime()) else VideoPlayback.Failed(-1, -1)
         } finally {
-            player.setOnPreparedListener(null)
-            player.setOnCompletionListener(null)
-            player.setOnErrorListener(null)
-            player.stopPlayback()
-            content.removeView(player)
+            observing = false
+            view.player = null
+            player.release()
+            content.removeView(view)
         }
     }
 
@@ -509,6 +564,15 @@ class MainActivity : AppCompatActivity(), SessionHost {
         contentResolver.openAssetFileDescriptor(uri, "r")?.use { true } ?: false
     } catch (_: Exception) {
         false
+    }
+
+    @androidx.annotation.RequiresApi(29)
+    private suspend fun awaitFrameCommit(view: View): Long = suspendCancellableCoroutine { continuation ->
+        val observer = view.viewTreeObserver
+        val callback = Runnable { if (continuation.isActive) continuation.resume(System.nanoTime()) }
+        observer.registerFrameCommitCallback(callback)
+        continuation.invokeOnCancellation { if (observer.isAlive) observer.unregisterFrameCommitCallback(callback) }
+        view.invalidate()
     }
 
     private suspend fun awaitNextFrame(): Long =

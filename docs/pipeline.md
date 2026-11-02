@@ -2,6 +2,10 @@
 
 A pipeline experimental executa em CPU, preserva cada quadro decodificado e produz baseline e variante calibrada separados. O processamento pode ser disparado em **Experimento → Coletas → Processar e consultar olhar**, consultado após recarregar o navegador e repetido em uma nova execução. Os arquivos originais permanecem intactos. A ausência de medidas ou correspondência temporal não impede inferência bruta: impede as conversões que delas dependem.
 
+## Coletas instrumentadas
+
+O Android atualizado registra a relação entre imagens/PTS codificados, quadros renderizados, alvos e geometria de apresentação. O painel pode gerar a configuração automaticamente com medidas do pesquisador. Consulte [coleta instrumentada e piloto](coleta-instrumentada.md) para operação, contrato, limites e critérios de entrega.
+
 ## Instalação e execução
 
 Na raiz, com Python 3.12, uv e Docker:
@@ -50,11 +54,11 @@ A tela usa a área ativa física na orientação da apresentação, origem no ca
 - `method`, `evidence` e `event_clock`: descrição e referência da medição, e relógio comum das apresentações e alvos;
 - `anchors`: pelo menos três pares estritamente crescentes `{"camera_ns":...,"event_ns":...}`. `camera_ns` deriva do **PTS × time base**, sem remover o PTS inicial;
 - `measurement_error_ms`: limite de incerteza medido pelo método; `max_error_ms`: critério escolhido antes da avaliação;
-- `presented_frames`: registros `{"event_ns":...,"media_time_ms":...,"duration_ms":...}` para quadros efetivamente apresentados.
+- `presented_frames`: registros `{"event_ns":...,"media_time_ms":...,"duration_ms":...}` para quadros renderizados. `media_duration_ms` opcional distingue a duração no vídeo original da permanência na tela em caso de pausa/buffering.
 
 A pipeline ajusta uma transformação afim entre relógios, relata deriva em ppm, residual máximo e a soma conservadora do residual com a incerteza declarada. Rejeita a associação se exceder o critério e não extrapola além dos anchors. Associa uma amostra ao quadro efetivamente apresentado que cobre aquele instante, limitado à sua duração e ao próximo registro. O timestamp exportado é o tempo de mídia desse quadro, não uma interpolação por FPS. Lacunas ficam explícitas. Na reprodução pelo webapp, só há sobreposição nos intervalos de mídia declarados e com amostras associadas.
 
-Esses registros devem vir de uma medição do aparelho; escrever `evidence` não demonstra por si só que a sincronização é válida. Os eventos atuais de VideoView/Choreographer **não** são automaticamente convertidos nesses registros. Coletas antigas permitem testar detecção/inferência, mas exigem evidência adicional ou nova coleta para análise sincronizada. Não houve alteração automática dessa evidência no Android.
+Esses registros devem vir de uma medição do aparelho; escrever `evidence` não demonstra por si só que a sincronização é válida. Os eventos legados de VideoView/Choreographer **não** são automaticamente convertidos nesses registros. Coletas novas usam a instrumentação descrita em [coleta instrumentada](coleta-instrumentada.md). Coletas antigas permitem testar detecção/inferência, mas exigem evidência adicional ou nova coleta para análise sincronizada. A instrumentação nova não altera evidências de coletas antigas.
 
 ## Alvos, calibração e critérios
 
@@ -68,7 +72,7 @@ A validação só mede erro: média, mediana, P95 em pixels, média em cm quando
 
 O detector é Face Landmarker float16 v1, com SHA-256 fixado. Rejeita ausência de rosto e múltiplos rostos. Usa quadrado do conjunto de landmarks com fator 1,1 para rosto e fator 1,8 ao redor dos landmarks de cada olho; o lado é anatômico após desfazer o espelhamento. Recortes que alcançam as bordas repetem o pixel de borda. Redimensiona para 224×224 bilinear, subtrai a média oficial em BGR 0–255 e gera NCHW float32. O grid segue o arredondamento MATLAB e achatamento por linhas da [referência oficial](https://github.com/CSAILVision/GazeCapture/blob/e4af90da3c4c9068fbce433fa648d1f9bc7a394b/code/faceGridFromFaceRect.m).
 
-As três médias `.mat` foram comparadas numericamente com os `binaryproto` oficiais nesta implementação: diferença máxima zero, sem inversão de canais. A configuração Caffe não contém normalização por 255. Isso não torna os recortes MediaPipe equivalentes às detecções Apple de treinamento. Os primeiros recortes válidos são disponibilizados como imagens locais para inspeção pelo pesquisador, com índice do quadro. Não publique imagens ou vídeos identificáveis no GitHub.
+As três médias `.mat` foram comparadas numericamente com os `binaryproto` oficiais nesta implementação: diferença máxima zero, sem inversão de canais. A configuração Caffe não contém normalização por 255. Isso não torna os recortes MediaPipe equivalentes às detecções Apple de treinamento. Recortes válidos são disponibilizados como imagens locais para inspeção pelo pesquisador, com índice e fase do quadro; quando possível, a seleção cobre calibração, estímulo e validação. Não publique imagens ou vídeos identificáveis no GitHub.
 
 ## Saídas e verificação
 

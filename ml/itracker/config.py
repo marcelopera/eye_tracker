@@ -47,6 +47,7 @@ class PresentedFrame(Strict):
     event_ns: int
     media_time_ms: float = Field(ge=0)
     duration_ms: float = Field(gt=0)
+    media_duration_ms: float | None = Field(default=None, gt=0)
 
 
 class Synchronization(Strict):

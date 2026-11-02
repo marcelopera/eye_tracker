@@ -19,7 +19,7 @@ from itracker import FILES, REVISION, Model, digest
 from preprocess import DetectionFailure, LANDMARKER_SHA256, Preprocessor
 from video import camera_frames
 
-PIPELINE_VERSION = "1.0.0"
+PIPELINE_VERSION = "1.1.0"
 
 
 def write_json(path, value):
@@ -84,11 +84,18 @@ def process_session(video: Path, events: Path, models: Path, config_path: Path, 
                     prediction, features = model.predict(inputs)
                     row.update(valid=True, prediction_cm=prediction[0].tolist(), features=features[0].tolist(), boxes=boxes)
                     row["screen_px"] = screen_point(row["prediction_cm"], config.geometry)
-                    if len(previews) < config.preview_frames:
+                    replace = None
+                    if len(previews) >= config.preview_frames and row['phase'] in ('calibration', 'stimulus', 'validation') and not any(p.get('phase') == row['phase'] for p in previews):
+                        counts = Counter(p.get('phase') for p in previews)
+                        replace = next((p for p in previews if p.get('phase') == 'unknown' or counts[p.get('phase')] > 1), None)
+                    if len(previews) < config.preview_frames or replace is not None:
                         filename = f"crops-{timing['frame_index']}.jpg"
                         if not cv2.imwrite(str(directory / filename), np.concatenate([crops[n] for n in ("face", "left", "right")], axis=1)):
                             raise OSError("Não foi possível salvar inspeção dos recortes")
-                        previews.append({"frame_index": timing["frame_index"], "file": filename, "order": ["face", "left", "right"]})
+                        if replace is not None:
+                            (directory / replace['file']).unlink()
+                            previews.remove(replace)
+                        previews.append({"frame_index": timing["frame_index"], "file": filename, "phase": row['phase'], "order": ["face", "left", "right"]})
                 except DetectionFailure as error:
                     row["reason"] = str(error)
                 rows.append(row)

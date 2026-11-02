@@ -1,6 +1,7 @@
 import hashlib
 import json
 import subprocess
+from pathlib import Path
 
 from fastapi.testclient import TestClient
 
@@ -88,3 +89,43 @@ def test_restart_marks_interrupted_attempt_and_keeps_history(tmp_path, monkeypat
     # A new request is a separate attempt; the original attempt stays auditable.
     retried = client.post('/api/sessions/session/runs', json=data)
     assert retried.status_code == 202 and retried.json()['id'] != run['id']
+
+
+def test_collection_preparation_uses_verified_original_and_private_settings(tmp_path, monkeypatch):
+    from types import SimpleNamespace
+    seed(tmp_path, monkeypatch)
+    source = tmp_path / 'sessions/session/sessao.json'
+    source.write_text(json.dumps({'estado':'concluida','eventos':[]}))
+    with connect() as db:
+        db.execute('UPDATE sessions SET events_hash=?', (hashlib.sha256(source.read_bytes()).hexdigest(),))
+    calls = []
+    def prepare(command, **kwargs):
+        calls.append(command)
+        assert command[2] == 'prepare'
+        assert json.loads(Path(command[-1]).read_text()) == {'settling_ms':500}
+        return SimpleNamespace(returncode=0, stdout=json.dumps({'config':{'schema_version':1},'issues':['missing_camera_instrumentation'],'ready_for_pilot':False}))
+    monkeypatch.setattr(processing.subprocess, 'run', prepare)
+    assert client.post('/api/sessions/missing/analysis-config',json={'settings':{}}).status_code == 404
+    response = client.post('/api/sessions/session/analysis-config',json={'settings':{'settling_ms':500}})
+    assert response.status_code == 200 and not response.json()['ready_for_pilot']
+    assert len(calls) == 1
+    assert not Path(calls[0][-1]).exists()
+    source.write_text('{}')
+    assert client.post('/api/sessions/session/analysis-config',json={}).status_code == 409
+    assert len(calls) == 1
+
+
+def test_preparation_validation_failure_and_media_interval_are_explicit(tmp_path, monkeypatch):
+    from types import SimpleNamespace
+    seed(tmp_path, monkeypatch)
+    monkeypatch.setattr(processing.subprocess,'run',lambda *a,**kw: SimpleNamespace(returncode=1,stderr='Medidas inválidas'))
+    assert client.post('/api/sessions/session/analysis-config',json={'settings':{}}).status_code == 422
+    first = client.post('/api/sessions/session/runs', json={'config':{'schema_version':1,'capture':{}}}).json()
+    result = tmp_path / 'runs' / first['id'] / 'results'
+    result.mkdir(parents=True)
+    (result/'summary.json').write_text(json.dumps({'config':{'synchronization':{'presented_frames':[
+        {'media_time_ms':100,'duration_ms':400,'media_duration_ms':100}]}}}))
+    (result/'samples.jsonl').write_text(json.dumps({'stimulus_time_ms':100,'valid':True})+'\n')
+    with connect() as db: db.execute("UPDATE processing_runs SET status='completed' WHERE id=?",(first['id'],))
+    assert client.get(f"/api/runs/{first['id']}/at?time_ms=150").json()['sample'] is not None
+    assert client.get(f"/api/runs/{first['id']}/at?time_ms=300").json()['sample'] is None
