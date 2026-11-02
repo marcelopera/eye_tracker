@@ -149,6 +149,9 @@ class MainActivity : AppCompatActivity(), SessionHost {
                         SessionEffect.CheckCameraPermission -> requestCameraPermission()
                         is SessionEffect.StartSession -> {
                             if (viewModel.acceptsStart(effect.token)) {
+                                // The state and effect collectors can run in either order.
+                                // Attach the session screen before the controller uses it.
+                                render(viewModel.uiState.value)
                                 controller.start(effect.config, effect.token)
                             }
                         }
@@ -211,15 +214,9 @@ class MainActivity : AppCompatActivity(), SessionHost {
         }
         content.addView(dot, FrameLayout.LayoutParams(size, size))
 
-        suspendCancellableCoroutine<Unit> { continuation ->
-            val position = Runnable {
-                dot.x = (x * content.width - size / 2.0).toFloat()
-                dot.y = (y * content.height - size / 2.0).toFloat()
-                if (continuation.isActive) continuation.resume(Unit)
-            }
-            content.post(position)
-            continuation.invokeOnCancellation { content.removeCallbacks(position) }
-        }
+        awaitNonEmptyLayout(content)
+        dot.x = (x * content.width - size / 2.0).toFloat()
+        dot.y = (y * content.height - size / 2.0).toFloat()
         return TargetDisplay(awaitNextFrame(), content.width, content.height)
     }
 
@@ -233,9 +230,8 @@ class MainActivity : AppCompatActivity(), SessionHost {
     override suspend fun playVideo(uri: String, onStarted: (Long) -> Unit): VideoPlayback = coroutineScope {
         val content = ensureSessionContent()
         content.removeAllViews()
-        val player = VideoView(this@MainActivity).apply {
-            setBackgroundColor(Color.BLACK)
-        }
+        content.setBackgroundColor(Color.BLACK)
+        val player = VideoView(this@MainActivity)
         content.addView(player, MATCH_PARENT, MATCH_PARENT)
 
         val prepared = CompletableDeferred<Boolean>()
@@ -290,7 +286,7 @@ class MainActivity : AppCompatActivity(), SessionHost {
             identificationScreen = null
             preparationScreen = null
             completionScreen = null
-            sessionContent = null
+            if (state.destination != Destination.Collecting) sessionContent = null
 
             when (state.destination) {
                 Destination.Identification -> {
@@ -317,17 +313,18 @@ class MainActivity : AppCompatActivity(), SessionHost {
                 }
 
                 Destination.Collecting -> {
-                    ensureSessionScreen()
-                    when (state.phase) {
+                    val alreadyCreated = sessionContent != null
+                    val content = ensureSessionScreen()
+                    if (!alreadyCreated) when (state.phase) {
                         SessionPhase.Finalizing -> {
-                            sessionContent?.addView(
+                            content.addView(
                                 sessionMessage(getString(R.string.finalizing), null),
                                 FrameLayout.LayoutParams(MATCH_PARENT, MATCH_PARENT),
                             )
                         }
 
                         else -> {
-                            sessionContent?.addView(
+                            content.addView(
                                 sessionMessage(
                                     getString(R.string.preparing_camera_title),
                                     getString(R.string.preparing_camera_description),
@@ -451,6 +448,24 @@ class MainActivity : AppCompatActivity(), SessionHost {
                 Choreographer.getInstance().removeFrameCallback(callback)
             }
         }
+
+    private suspend fun awaitNonEmptyLayout(view: View) {
+        if (view.isLaidOut && !view.isLayoutRequested && view.width > 0 && view.height > 0) return
+        suspendCancellableCoroutine<Unit> { continuation ->
+            val listener = object : View.OnLayoutChangeListener {
+                override fun onLayoutChange(
+                    changed: View, left: Int, top: Int, right: Int, bottom: Int,
+                    oldLeft: Int, oldTop: Int, oldRight: Int, oldBottom: Int,
+                ) {
+                    if (right <= left || bottom <= top) return
+                    changed.removeOnLayoutChangeListener(this)
+                    if (continuation.isActive) continuation.resume(Unit)
+                }
+            }
+            view.addOnLayoutChangeListener(listener)
+            continuation.invokeOnCancellation { view.removeOnLayoutChangeListener(listener) }
+        }
+    }
 
     private fun color(resource: Int): Int = ContextCompat.getColor(this, resource)
 

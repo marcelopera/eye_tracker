@@ -13,6 +13,29 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  containers:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate Compose
+        run: docker compose config --quiet
+      - name: Run API tests in Docker
+        run: docker build --target test -t eye-tracker-api-test services/api
+      - name: Build and start the stack
+        run: docker compose up --build -d --wait --wait-timeout 120
+      - name: Check public routes
+        run: |
+          curl --fail --silent --show-error http://localhost:8080/
+          curl --fail --silent --show-error http://localhost:8080/api/health
+          curl --fail --silent --show-error http://localhost:8080/api/info
+          curl --fail --silent --show-error http://localhost:8080/openapi.json
+      - name: Container logs
+        if: always()
+        run: docker compose logs --no-color
+      - name: Stop the stack
+        if: always()
+        run: docker compose down
+
   android:
     runs-on: ubuntu-latest
     steps:
