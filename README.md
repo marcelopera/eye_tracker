@@ -1,6 +1,6 @@
 # Eye tracking por vídeo no smartphone
 
-Sistema de pesquisa que coleta vídeo no Android e prevê processamento posterior do olhar no servidor. A base web contém uma interface React e um serviço FastAPI, gerenciado com uv, executados em containers.
+Sistema de pesquisa que coleta vídeo no Android e processa estimativas de olhar no servidor. A base web contém uma interface React e um serviço FastAPI, gerenciado com uv, executados em containers.
 
 **Celular grava → servidor processa → painel mostra o olhar**
 
@@ -28,7 +28,7 @@ docker compose up --build -d --wait
 - Documentação interativa: [http://localhost:8080/docs](http://localhost:8080/docs).
 - Contrato OpenAPI: [http://localhost:8080/openapi.json](http://localhost:8080/openapi.json).
 
-A interface consulta a API e permite atualizar seu estado. Envio de sessões e processamento de olhar aparecem como funcionalidades em preparação. Esta base ainda não executa a pipeline descrita no [plano do iTracker](docs/plano-itracker-pretreinado.md).
+A interface permite criar experimentos, receber coletas Android, executar análises de olhar e inspecionar/exportar resultados. A [pipeline experimental](docs/pipeline.md) usa iTracker congelado e MediaPipe, com calibração e avaliação condicionadas às medidas e à sincronização fornecidas. Baixe e verifique os modelos conforme essa documentação antes de executar análises.
 
 São dois containers: o webapp servido pelo Nginx e uma API Python. O Nginx encaminha as chamadas para a API pela rede interna. O Compose aguarda a API passar pelo healthcheck antes de iniciar a interface.
 
@@ -45,7 +45,7 @@ Para mudar a porta ou permitir acesso pela rede local, copie [.env.example](.env
 Os builds usam os lockfiles das dependências: npm ci no webapp e uv sync --frozen na API. Para executar os testes Python em um container:
 
 ```sh
-docker build --target test -t eye-tracker-api-test services/api
+docker build -f services/api/Dockerfile --target test -t eye-tracker-api-test .
 ```
 
 Para validar a configuração e compilar ambos os componentes, incluindo a checagem TypeScript:

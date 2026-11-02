@@ -52,6 +52,12 @@ def connect():
         db.execute("CREATE UNIQUE INDEX experiment_code ON experiments(code)")
         db.execute("PRAGMA user_version = 2")
     db.execute("CREATE TABLE IF NOT EXISTS sessions (id TEXT PRIMARY KEY, local_id TEXT UNIQUE NOT NULL, experiment_id TEXT NOT NULL, participant_code TEXT NOT NULL, video_hash TEXT, events_hash TEXT)")
+    db.execute("""CREATE TABLE IF NOT EXISTS processing_runs (
+        id TEXT PRIMARY KEY, session_id TEXT NOT NULL, status TEXT NOT NULL,
+        config TEXT NOT NULL, created_at TEXT NOT NULL, started_at TEXT,
+        finished_at TEXT, error TEXT
+    )""")
+    db.execute("CREATE UNIQUE INDEX IF NOT EXISTS active_processing ON processing_runs(session_id) WHERE status IN ('queued','running')")
     db.commit()
     try:
         with db:

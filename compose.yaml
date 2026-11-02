@@ -1,7 +1,8 @@
 services:
   api:
     build:
-      context: ./services/api
+      context: .
+      dockerfile: services/api/Dockerfile
       target: runtime
     init: true
     restart: unless-stopped
@@ -10,6 +11,7 @@ services:
       - /tmp
     volumes:
       - experiment_data:/data
+      - ./modelos/itracker:/models:ro
     expose:
       - "8000"
     healthcheck:

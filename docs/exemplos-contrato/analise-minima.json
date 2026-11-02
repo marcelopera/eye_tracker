@@ -1,0 +1,11 @@
+{
+  "schema_version": 1,
+  "capture": { "rotation_degrees": 0, "mirrored": false },
+  "geometry": null,
+  "synchronization": null,
+  "targets": [],
+  "calibration": null,
+  "criteria": null,
+  "export_features": false,
+  "preview_frames": 3
+}

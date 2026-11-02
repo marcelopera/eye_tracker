@@ -1,6 +1,6 @@
 # Contrato proposto para a pipeline, versão 1
 
-Estado: proposta para revisão; ainda não implementado. Este contrato define uma interface para discussão, não afirma que o Android atual exporta estes campos. Uma sessão é um diretório transferido localmente contendo `manifest.json` e os arquivos relativos declarados nele. JSON usa UTF-8; caminhos são relativos ao diretório da sessão, sem caminhos absolutos ou `..`. A integridade é SHA-256 dos bytes de cada arquivo declarado; não confundir com hash de objeto Git.
+Estado: o manifesto de coleta abaixo permanece proposto. A entrada de análise, os resultados e as regras executáveis estão definidos em [pipeline.md](pipeline.md). O importador atual preserva o pacote Android legado, sem apresentá-lo como manifesto v1. Este contrato define uma interface para discussão, não afirma que o Android atual exporta estes campos. Uma sessão é um diretório transferido localmente contendo `manifest.json` e os arquivos relativos declarados nele. JSON usa UTF-8; caminhos são relativos ao diretório da sessão, sem caminhos absolutos ou `..`. A integridade é SHA-256 dos bytes de cada arquivo declarado; não confundir com hash de objeto Git.
 
 ## Manifesto
 

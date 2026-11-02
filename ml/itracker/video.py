@@ -14,12 +14,14 @@ def camera_frames(path: Path, rotation: int = 0, mirrored: bool = False):
     """
     if rotation not in (0, 90, 180, 270):
         raise ValueError("Rotação deve ser 0, 90, 180 ou 270 graus")
-    with av.open(str(path)) as container:
+    with av.open(str(path), options={"protocol_whitelist": "file,pipe"}) as container:
         if not container.streams.video:
             raise ValueError("Arquivo não contém vídeo")
         stream = container.streams.video[0]
         count = 0
         for frame in container.decode(stream):
+            if frame.width * frame.height > 16777216:
+                raise ValueError("Quadro excede o limite de 16 megapixels")
             image = frame.to_ndarray(format="bgr24")
             if mirrored:
                 image = cv2.flip(image, 1)

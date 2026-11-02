@@ -1,6 +1,8 @@
 # Núcleo iTracker Caffe
 
-Este núcleo executa o modelo congelado oficial em CPU sobre tensores já preparados. É uma entrega parcial da [issue 12](https://github.com/marcelopera/eye_tracker/issues/12): **não executa inferência sobre sessões ou vídeos**, detecta rostos, sincroniza eventos, calibra ou mede precisão. A inspeção de vídeo abaixo fornece somente um diagnóstico de decodificação. O [plano](../../docs/plano-itracker-pretreinado.md) descreve o trabalho restante e as validações em aparelho.
+A pipeline experimental agora decodifica vídeos, detecta rosto/olhos com MediaPipe, prepara os tensores, executa o Caffe e exporta previsões por quadro. Também suporta sincronização por anchors medidos, conversão espacial com geometria explícita, calibração SVR e métricas em alvos separados. A API e o webapp permitem executar e inspecionar as análises. Consulte a [operação e configuração completas](../../docs/pipeline.md).
+
+Os resultados científicos dependem das medidas físicas, correspondência temporal e validação em aparelho. Coletas antigas sem esses dados podem gerar inferência bruta, sem coordenadas sincronizadas do estímulo.
 
 O modelo e as médias pertencem aos autores do GazeCapture, cuja [licença](https://github.com/CSAILVision/GazeCapture/blob/e4af90da3c4c9068fbce433fa648d1f9bc7a394b/LICENSE.md) restringe uso e redistribuição e exige citação. Antes de baixar ou usar, confira a licença. Os SHA-256 são fingerprints calculados localmente no estudo do plano, não checksums publicados pelos autores. Os arquivos não são incluídos no repositório ou na imagem.
 
@@ -13,7 +15,7 @@ uv run --frozen python itracker.py download --models ../../modelos/itracker
 uv run --frozen python itracker.py smoke --models ../../modelos/itracker
 ```
 
-`smoke` usa apenas zeros e verifica a execução, não a precisão nem o pré-processamento. Para inferência experimental, `infer --models ../../modelos/itracker --input entrada.npz` recebe quatro arrays float32 finitos: `face`, `left` e `right` com forma `(1,3,224,224)`, e `grid` com forma `(1,625)`. Devem já estar no formato e escala esperados pelo Caffe; não há conversão nem subtração de médias neste comando. A saída JSON inclui `prediction_cm` da camada `fc3`, 128 `features` de `relufc2`, revisão e hash dos pesos. As convenções espaciais e o pré-processamento para imagens reais ainda precisam ser validados.
+`smoke` usa apenas zeros e verifica a execução, não a precisão nem o pré-processamento. Para inferência experimental, `infer --models ../../modelos/itracker --input entrada.npz` recebe quatro arrays float32 finitos: `face`, `left` e `right` com forma `(1,3,224,224)`, e `grid` com forma `(1,625)`. Devem já estar no formato e escala esperados pelo Caffe; não há conversão nem subtração de médias neste comando. A saída JSON inclui `prediction_cm` da camada `fc3`, 128 `features` de `relufc2`, revisão e hash dos pesos. O comando `process` aplica o pré-processamento descrito na documentação; os recortes adaptados precisam de avaliação no aparelho.
 
 Em Docker, da mesma pasta, usando um diretório de modelos local já baixado:
 
@@ -22,7 +24,7 @@ docker build -t eye-tracker-itracker .
 docker run --rm -v "$(realpath ../../modelos/itracker):/models:ro" eye-tracker-itracker smoke --models /models
 ```
 
-Também é possível baixar com o container usando um volume gravável e `download --models /models`. O código confere o SHA-256 antes de usar os dois arquivos da rede e falha quando ausentes ou alterados. As três médias são baixadas e verificadas para uso futuro, mas ainda não são aplicadas.
+Também é possível baixar com o container usando um volume gravável e `download --models /models`. O código confere o SHA-256 antes de usar os dois arquivos da rede e falha quando ausentes ou alterados. As três médias são verificadas e aplicadas no comando `process`.
 
 ## Inspeção inicial de vídeo
 

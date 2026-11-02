@@ -28,7 +28,7 @@ def test_info_contract_marks_capabilities_as_unavailable() -> None:
         "description": "Base de coleta e processamento de olhar.",
         "capabilities": {
             "session_upload": True,
-            "gaze_processing": False,
+            "gaze_processing": __import__("app.processing", fromlist=["enabled"]).enabled(),
         },
     }
 

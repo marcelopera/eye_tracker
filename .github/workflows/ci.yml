@@ -20,7 +20,10 @@ jobs:
       - name: Validate Compose
         run: docker compose config --quiet
       - name: Run API tests in Docker
-        run: docker build --target test -t eye-tracker-api-test services/api
+        run: docker build -f services/api/Dockerfile --target test -t eye-tracker-api-test .
+      - uses: astral-sh/setup-uv@v7
+      - name: Test video pipeline
+        run: uv run --directory ml/itracker --frozen --group dev python -m pytest
       - name: Build and start the stack
         run: docker compose up --build -d --wait --wait-timeout 120
       - name: Check public routes
