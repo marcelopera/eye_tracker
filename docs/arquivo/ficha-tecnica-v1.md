@@ -1,3 +1,7 @@
+# Ficha técnica v1
+
+> **Histórico — substituída pelo [ADR-0001](../adr/0001-recorte-atual.md); não implementar sem decisão.**
+
 Ficha técnica — Eye tracking por vídeo em celular (100% on‑premises)
 Versão 1 — 22/10/2026.
 Escopo: coleta (Android) → processamento (detector de landmarks próprio + calibração) → análise (painel web).

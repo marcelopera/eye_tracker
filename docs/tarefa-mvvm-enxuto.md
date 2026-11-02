@@ -10,7 +10,7 @@ O usuário escolheu explicitamente MVVM enxuto e, posteriormente, determinou que
 
 ## Contexto que deve ser lido primeiro
 
-- Workspace: `C:/Users/marce/mestrado/projeto`.
+- Workspace: este repositório.
 - `README.md`: roadmap e foco atual na coleta local.
 - `docs/contexto-projeto.md`: conceitos, fluxo desejado e restrições do projeto.
 - `apps/android/README.md`: comportamento e limitações do protótipo atual.
@@ -92,7 +92,7 @@ Não colocar `Activity`, `View`, `VideoView`, `LifecycleOwner` ou callbacks que 
 - Novo contrato científico, PTS/sincronização completa, hashes ou pacote definitivo descrito no contexto do projeto.
 - Alteração do protocolo, parâmetros experimentais ou exigência de participante.
 - Migração para Compose ou substituição ampla do sistema de UI, multimódulos, Hilt/Dagger, Room ou WorkManager sem necessidade desta refatoração. A migração de Java para Kotlin faz parte obrigatória do escopo.
-- Alterar `C:/Users/marce/mestrado/eye tracking` ou outros projetos anteriores.
+- Alterar o app legado ou outros projetos anteriores.
 
 A refatoração não deve apresentar o protótipo como coleta validada para pesquisa. Se uma decisão científica ou contrato externo for indispensável, perguntar ao pesquisador. Decisões rotineiras de organização do código podem ser tomadas pelo agente.
 
@@ -146,4 +146,4 @@ Ao entregar, informar arquivos alterados, decisões de arquitetura, comandos exe
 
 ## Prompt para iniciar a implementação
 
-> Implemente a tarefa descrita em `C:/Users/marce/mestrado/projeto/docs/tarefa-mvvm-enxuto.md`. O aplicativo Android deve ser implementado em Kotlin com MVVM enxuto, migrando o código Java existente e mantendo o sistema de Views. Leia o contexto e confira o código atual antes de editar; preserve o fluxo de coleta local e as limitações documentadas. Faça a migração, a refatoração, as correções e as verificações previstas, e entregue um resumo com evidências e pendências. Não implemente backend nem altere o protocolo científico.
+> Implemente a tarefa descrita em `docs/tarefa-mvvm-enxuto.md`. O aplicativo Android deve ser implementado em Kotlin com MVVM enxuto, migrando o código Java existente e mantendo o sistema de Views. Leia o contexto e confira o código atual antes de editar; preserve o fluxo de coleta local e as limitações documentadas. Faça a migração, a refatoração, as correções e as verificações previstas, e entregue um resumo com evidências e pendências. Não implemente backend nem altere o protocolo científico.

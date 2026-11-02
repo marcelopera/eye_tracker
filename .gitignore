@@ -21,6 +21,7 @@ local.properties
 *.avi
 *.mkv
 *.onnx
+*.task
 *.pt
 *.pth
 *.ckpt

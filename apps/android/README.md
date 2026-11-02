@@ -25,6 +25,8 @@ A seleção de vídeo e a permissão de câmera usam a Activity Result API. O bo
 
 ## Verificação
 
+Requer Android Studio/SDK, plataforma Android 37, build-tools 36.0.0 e JDK 25 para o Gradle. Para instalar em aparelho conectado, use `.\gradlew.bat :app:installDebug` no PowerShell. A versão de aparelho testada ainda não foi registrada.
+
 Para compilar, testar e rodar o lint no Windows:
 
 ```powershell

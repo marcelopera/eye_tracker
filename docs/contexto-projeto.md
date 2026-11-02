@@ -51,19 +51,19 @@ O pacote previsto contém `face.mp4`, `sync.json`, `calib.json`, `device.json` e
 
 O Android deve ser simples: obter o experimento, conduzir a sessão, gravar, registrar e enviar. **A inferência e o ajuste matemático da calibração ficam no servidor.** Os arquivos são privados ao aplicativo; não devem aparecer na galeria nem entrar em backup automático. Não apagar a coleta só porque o upload terminou: aguardar a confirmação de processamento e integridade prevista no fluxo.
 
-MediaPipe fornece landmarks; a estimativa da posição na tela também exige features e calibração. Começaremos pela adaptação da pipeline já existente no aplicativo anterior. Não será desenvolvido ou treinado um detector próprio.
+MediaPipe fornece landmarks; a estimativa da posição na tela também exige features e calibração. Começaremos pela adaptação da pipeline já existente no app legado. Não será desenvolvido ou treinado um detector próprio.
 
 ## Entrega atual e pesquisa
 
-A entrega inicial, planejada para sete dias com cinco horas diárias do pesquisador, inclui apresentação, demonstração limitada funcionando e resultados preliminares de **uma única pipeline**. A arquitetura pode ser reduzida. Não implementar automaticamente todos os serviços, Kafka, Keycloak, S3, heatmaps ou AOIs da ficha original; o recorte ainda deve ser combinado.
+A entrega inicial inclui apresentação, demonstração limitada funcionando e resultados preliminares de **uma única pipeline**. A arquitetura pode ser reduzida. Não implementar automaticamente os componentes e funcionalidades da ficha original; o recorte ainda deve ser combinado.
 
 A contribuição científica prevista é a revisão sistemática da literatura e o benchmark entre métodos existentes. Esses trabalhos continuam além da demonstração inicial. Não afirmar que uma sessão de teste constitui benchmark concluído ou precisão validada para outros participantes.
 
 ## Orientação para executar trabalho
 
-- Trabalhar em `C:/Users/marce/mestrado/projeto` e seguir o roadmap do `README.md`, uma etapa por vez.
-- Preservar o repositório anterior em `C:/Users/marce/mestrado/eye tracking`; usá-lo como referência de reaproveitamento.
-- O app anterior faz inferência local em imagens amostradas; não possui o gravador contínuo necessário ao novo fluxo. Não presumir que copiar seu controlador de câmera resolve a coleta.
+- Trabalhar neste repositório e seguir as etapas do roadmap, uma por vez.
+- Preservar o app legado e usá-lo como referência de reaproveitamento. Sua URL e revisão ainda precisam ser registradas.
+- O app legado faz inferência local em imagens amostradas; não possui o gravador contínuo necessário ao novo fluxo. Não presumir que copiar seu controlador de câmera resolve a coleta.
 - Preservar o código já existente no novo projeto e verificar seu comportamento antes de modificá-lo.
 - Não recriar estrutura extensa de pastas, filas ou tarefas sem pedido.
 - **Perguntar ao pesquisador sempre que houver dúvida.** Tecnologias do protótipo, endpoints, formatos de IDs, parâmetros da coleta e critérios científicos ainda não definidos não devem ser inventados.
