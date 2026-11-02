@@ -13,7 +13,7 @@ from uuid import uuid4
 import cv2
 import numpy as np
 
-from analysis import Timeline, calibrate, evaluate, screen_point, stimulus_point
+from analysis import Timeline, calibrate, evaluate, screen_point, stimulus_point, smooth_demonstration
 from config import ProcessingConfig
 from itracker import FILES, REVISION, Model, digest
 from preprocess import DetectionFailure, LANDMARKER_SHA256, Preprocessor
@@ -113,6 +113,8 @@ def process_session(video: Path, events: Path, models: Path, config_path: Path, 
                         mapped = row[prefix + "stimulus_px"]
                         if mapped is not None:
                             row[prefix + "outside_stimulus"] = not (0 <= mapped[0] < g.stimulus_width_px and 0 <= mapped[1] < g.stimulus_height_px)
+            if config.demonstration:
+                smooth_demonstration(rows)
             metrics = evaluate(rows, config.geometry, config.criteria)
             count = len(rows)
             valid = sum(r["valid"] for r in rows)
@@ -132,7 +134,8 @@ def process_session(video: Path, events: Path, models: Path, config_path: Path, 
                        "synchronization": timeline.report, "calibration": calibration,
                        "geometry_status": "provided" if config.geometry else "unavailable",
                        "validation": metrics, "previews": previews,
-                       "scientific_validation": "requires_device_pilot",
+                       "scientific_validation": "classroom_demonstration" if config.demonstration else "requires_device_pilot",
+                       "config_mode": "demonstration" if config.demonstration else "measured",
                        "preprocessing": {"channels": "BGR", "scale": "0..255 minus official mean", "resize": "bilinear",
                                          "face_square_margin": 1.1, "eye_square_margin": 1.8,
                                          "padding": "replicate", "grid": "25x25 row-major, MATLAB rounding",
@@ -146,7 +149,7 @@ def process_session(video: Path, events: Path, models: Path, config_path: Path, 
                       "phase", "stimulus_time_ms", "valid", "reason", "temporal_reason", "spatial_reason", "raw_x_cm", "raw_y_cm",
                       "screen_x_px", "screen_y_px", "x_px", "y_px", "calibrated_screen_x_px", "calibrated_screen_y_px",
                       "calibrated_x_px", "calibrated_y_px", "outside_screen", "outside_stimulus",
-                      "calibrated_outside_screen", "calibrated_outside_stimulus"]
+                      "calibrated_outside_screen", "calibrated_outside_stimulus", "demo_x_px", "demo_y_px"]
             with (directory / "samples.csv").open("w", encoding="utf-8", newline="") as stream:
                 writer = csv.DictWriter(stream, fieldnames=fields)
                 writer.writeheader()
@@ -156,8 +159,9 @@ def process_session(video: Path, events: Path, models: Path, config_path: Path, 
                     flat.update(time_base_num=base[0], time_base_den=base[1])
                     for key, names in (("prediction_cm", ("raw_x_cm", "raw_y_cm")), ("screen_px", ("screen_x_px", "screen_y_px")),
                                        ("stimulus_px", ("x_px", "y_px")), ("calibrated_screen_px", ("calibrated_screen_x_px", "calibrated_screen_y_px")),
-                                       ("calibrated_stimulus_px", ("calibrated_x_px", "calibrated_y_px"))):
-                        point = row[key] or [None, None]
+                                       ("calibrated_stimulus_px", ("calibrated_x_px", "calibrated_y_px")),
+                                       ("demo_stimulus_px", ("demo_x_px", "demo_y_px"))):
+                        point = row.get(key) or [None, None]
                         flat.update(zip(names, point))
                     writer.writerow(flat)
             write_json(directory / "summary.json", summary)

@@ -2,6 +2,7 @@ import hashlib
 import json
 import subprocess
 from pathlib import Path
+import pytest
 
 from fastapi.testclient import TestClient
 
@@ -91,7 +92,8 @@ def test_restart_marks_interrupted_attempt_and_keeps_history(tmp_path, monkeypat
     assert retried.status_code == 202 and retried.json()['id'] != run['id']
 
 
-def test_collection_preparation_uses_verified_original_and_private_settings(tmp_path, monkeypatch):
+@pytest.mark.parametrize("mode", ["measured", "demo"])
+def test_collection_preparation_uses_verified_original_and_private_settings(tmp_path, monkeypatch, mode):
     from types import SimpleNamespace
     seed(tmp_path, monkeypatch)
     source = tmp_path / 'sessions/session/sessao.json'
@@ -102,11 +104,12 @@ def test_collection_preparation_uses_verified_original_and_private_settings(tmp_
     def prepare(command, **kwargs):
         calls.append(command)
         assert command[2] == 'prepare'
+        assert ('--demo' in command) == (mode == 'demo')
         assert json.loads(Path(command[-1]).read_text()) == {'settling_ms':500}
         return SimpleNamespace(returncode=0, stdout=json.dumps({'config':{'schema_version':1},'issues':['missing_camera_instrumentation'],'ready_for_pilot':False}))
     monkeypatch.setattr(processing.subprocess, 'run', prepare)
     assert client.post('/api/sessions/missing/analysis-config',json={'settings':{}}).status_code == 404
-    response = client.post('/api/sessions/session/analysis-config',json={'settings':{'settling_ms':500}})
+    response = client.post('/api/sessions/session/analysis-config',json={'settings':{'settling_ms':500},'mode':mode})
     assert response.status_code == 200 and not response.json()['ready_for_pilot']
     assert len(calls) == 1
     assert not Path(calls[0][-1]).exists()

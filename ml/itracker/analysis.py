@@ -1,9 +1,23 @@
 """Explicit temporal/spatial transforms and held-out evaluation."""
 from bisect import bisect_right
+from collections import deque
 import numpy as np
 from sklearn.pipeline import make_pipeline
 from sklearn.preprocessing import StandardScaler
 from sklearn.svm import SVR
+
+
+def smooth_demonstration(rows):
+    """Causal five-frame median; never bridge a missing point or another protocol phase."""
+    history = deque(maxlen=5)
+    for row in rows:
+        point = row.get('calibrated_stimulus_px')
+        if point is None or row['phase'] != 'stimulus':
+            history.clear()
+            row['demo_stimulus_px'] = None
+        else:
+            history.append(point)
+            row['demo_stimulus_px'] = np.median(history, axis=0).tolist()
 
 
 class Timeline:

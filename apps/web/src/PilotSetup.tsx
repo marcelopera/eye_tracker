@@ -1,7 +1,7 @@
 import { useState } from 'react';
 
 type Preparation = { config: Record<string, unknown>; issues: string[]; ready_for_pilot: boolean };
-const issues: Record<string, string> = {
+export const issues: Record<string, string> = {
   missing_camera_instrumentation: 'Coleta antiga: faltam os registros por quadro da câmera. Faça uma nova coleta com o app atualizado.',
   missing_physical_measurements: 'Informe as medidas físicas para obter o baseline na tela e erro em centímetros.',
   missing_display_geometry: 'A coleta não registrou a área da tela ou do vídeo.',

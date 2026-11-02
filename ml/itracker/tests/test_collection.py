@@ -92,3 +92,22 @@ def test_missing_render_callback_leaves_gap_instead_of_extending_previous_frame(
     result = prepare_collection(data, settings())
     assert result['config']['synchronization']['presented_frames'] == []
     assert 'missing_presented_frames' in result['issues']
+
+
+def test_classroom_demo_assumes_profile_and_fits_rotated_phone_video():
+    data = collection()
+    for e in data['eventos']:
+        if e['evento']=='display_v1':
+            e['dados']=json.dumps({'screen_width_px':1080,'screen_height_px':2400,'model':'SM-M526B'})
+        if e['evento']=='stimulus_geometry_v1':
+            e['dados']=json.dumps({'x_px':0,'y_px':90,'width_px':1080,'height_px':2184,
+                                  'video_width_px':720,'video_height_px':1280,'rotation_degrees':0})
+    result = prepare_collection(data, {}, demonstration=True)
+    assert result['ready_for_pilot'] and result['issues']==[]
+    config=result['config']
+    assert config['demonstration'] and config['capture']['rotation_degrees']==270
+    assert tuple(config['geometry']['stimulus_rect'])==(0,222,1080,1920)
+    assert config['geometry']['stimulus_coordinate_space']=='display'
+    assert config['geometry']['screen_width_mm']==pytest.approx(69.84,abs=.1)
+    assert config['calibration']['C']==1000 and config['criteria'] is None
+    assert 'não medidos' in result['assumptions']

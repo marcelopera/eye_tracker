@@ -92,3 +92,13 @@ def test_preprocessing_keeps_bgr_scale_nchw_and_anatomical_eye_order():
     processor.detector = SimpleNamespace(detect=lambda _: SimpleNamespace(face_landmarks=[points,points]))
     with pytest.raises(DetectionFailure, match='multiple_faces'):
         processor.prepare(image)
+
+
+def test_demo_cursor_suppresses_spikes_and_resets_at_missing_frames():
+    from analysis import smooth_demonstration
+    rows = [{'phase':'stimulus','calibrated_stimulus_px':point} for point in
+            ([10,20],[11,21],[9000,-1000],[12,22],None,[100,200])]
+    smooth_demonstration(rows)
+    assert rows[2]['demo_stimulus_px']==[11,20]
+    assert rows[4]['demo_stimulus_px'] is None
+    assert rows[5]['demo_stimulus_px']==[100,200]

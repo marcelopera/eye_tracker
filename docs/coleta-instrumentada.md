@@ -2,6 +2,16 @@
 
 O fluxo implementado é **experimento → Android → arquivos íntegros → preparação da análise → inferência → calibração e validação → inspeção**. O iTracker usa os pesos oficiais congelados. A precisão no aparelho e o erro temporal precisam de medição; a execução dos testes de software não substitui esse piloto.
 
+## Demonstração da disciplina
+
+O modo padrão do painel é **Modo demonstração**. Abra a coleta e clique em **Gerar estimativa para demonstração**. O sistema aplica a rotação registrada no Android, monta a correspondência temporal dos registros e calibra com os alvos da sessão. Não é necessário preencher o formulário de medidas.
+
+O preset assume tela de 6,7 polegadas, câmera no centro horizontal e a 4 mm da borda superior, eixos usuais de retrato, incerteza temporal de 35 ms e limite de 100 ms. Descarta os primeiros 500 ms de cada alvo e usa SVR linear com C=1000, epsilon=10, mínimo de 15 amostras e três posições. Esses são valores aproximados para uma demonstração; as coordenadas continuam sendo calculadas das imagens e dos alvos gravados. O cursor usa mediana causal de cinco quadros para reduzir tremor.
+
+No modo demonstração, as coordenadas do estímulo seguem o vídeo **como exibido**, incluindo sua rotação. O retângulo é ajustado proporcionalmente dentro da área registrada, corrigindo o caso do vídeo vertical em uma Surface ainda sem o layout final. Os resultados registram `demonstration: true` e `stimulus_coordinate_space: "display"`. O modo manual permanece em opções avançadas.
+
+Para preparar pela API: `POST /api/sessions/{id}/analysis-config` com `{"mode":"demo"}`. O processamento continua sendo disparado pela rota de execuções com a configuração retornada.
+
 ## Operação
 
 1. Instale o APK atualizado, prepare o experimento e realize uma nova coleta com o celular em tela inteira. O protocolo mantém cinco posições de calibração, repetidas duas vezes, e cinco posições distintas para validação. As durações continuam provisórias.
