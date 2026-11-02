@@ -9,6 +9,7 @@ import subprocess
 import threading
 import tempfile
 from uuid import uuid4
+from typing import Literal
 
 from fastapi import APIRouter, HTTPException, Query
 from fastapi.responses import FileResponse
@@ -46,6 +47,7 @@ class RunInput(BaseModel):
 
 class PreparationInput(BaseModel):
     settings: dict = Field(default_factory=dict)
+    mode: Literal["measured", "demo"] = "measured"
 
 
 @router.post("/sessions/{session_id}/analysis-config")
@@ -71,7 +73,7 @@ def collection_config(session_id: str, data: PreparationInput):
         with tempfile.TemporaryDirectory() as temporary:
             settings = Path(temporary) / "settings.json"
             settings.write_text(encoded, encoding="utf-8")
-            result = subprocess.run([str(python), str(directory / "itracker.py"), "prepare", "--events", str(source.resolve()),
+            result = subprocess.run([str(python), str(directory / "itracker.py"), "prepare", *(["--demo"] if data.mode == "demo" else []), "--events", str(source.resolve()),
                 "--settings", str(settings)], capture_output=True, text=True, timeout=30,
                 env={**os.environ, "OMP_NUM_THREADS": "1", "OPENBLAS_NUM_THREADS": "1"})
             if result.returncode:
@@ -248,7 +250,11 @@ def execute(row):
             with connect() as db:
                 experiment = db.execute("SELECT stimulus FROM experiments WHERE id=?", (session["experiment_id"],)).fetchone()
             stimulus = json.loads(experiment["stimulus"]) if experiment and experiment["stimulus"] else None
-            if stimulus and (settings["geometry"].get("stimulus_width_px"), settings["geometry"].get("stimulus_height_px")) != (stimulus["width"], stimulus["height"]):
+            dimensions = (settings['geometry'].get('stimulus_width_px'), settings['geometry'].get('stimulus_height_px'))
+            expected = [(stimulus['width'], stimulus['height'])] if stimulus else []
+            if stimulus and settings.get('demonstration') and settings['geometry'].get('stimulus_coordinate_space') == 'display':
+                expected.append((stimulus['height'], stimulus['width']))
+            if stimulus and dimensions not in expected:
                 raise ValueError("Dimensões do estímulo na configuração divergem do vídeo do experimento.")
         config = run_root / "config.json"
         config.write_text(row["config"], encoding="utf-8")

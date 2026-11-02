@@ -29,7 +29,9 @@ class PilotSettings(Strict):
     export_features: bool = False
 
 
-def prepare_collection(metadata, settings):
+def prepare_collection(metadata, settings, *, demonstration=False):
+    if demonstration:
+        return prepare_demonstration(metadata)
     settings = PilotSettings.model_validate(settings)
     config = ProcessingConfig(schema_version=1, capture=Capture(rotation_degrees=0, mirrored=False),
                               calibration=settings.calibration, criteria=settings.criteria,
@@ -156,3 +158,40 @@ def prepare_collection(metadata, settings):
             issues.append('rejected_synchronization')
     return {'config': config.model_dump(), 'issues': issues, 'ready_for_pilot': not issues,
             'scientific_validation': 'requires_device_pilot'}
+
+
+def prepare_demonstration(metadata):
+    """A useful classroom default: approximate dimensions, real recorded features/targets."""
+    display = next((json.loads(e['dados']) for e in metadata.get('eventos', []) if e.get('evento') == 'display_v1'), {})
+    width, height = display.get('screen_width_px', 1080), display.get('screen_height_px', 2400)
+    diagonal_mm = 170.18  # Assumed 6.7-inch screen; not a measured device profile.
+    scale = diagonal_mm / (width * width + height * height) ** .5
+    assumed = 'Valores aproximados para demonstração de disciplina; não medidos.'
+    settings = {
+        'physical': {'screen_width_mm': width * scale, 'screen_height_mm': height * scale,
+            'camera_x_mm': width * scale / 2, 'camera_y_mm': 4,
+            'model_axes': [[1, 0], [0, -1]], 'measurement_evidence': assumed, 'axes_evidence': assumed},
+        'timing': {'measurement_error_ms': 35, 'max_error_ms': 100, 'evidence': assumed},
+        'settling_ms': 500,
+        'calibration': {'kernel': 'linear', 'C': 1000, 'epsilon': 10, 'gamma': .01, 'min_samples': 15, 'min_targets': 3},
+        'criteria': None,
+    }
+    result = prepare_collection(metadata, settings)
+    config = result['config']
+    config['demonstration'] = True
+    geometry = config.get('geometry')
+    if geometry:
+        # Older apps recorded the Surface before its final layout. Reconstruct FIT content
+        # from its viewport and the displayed video dimensions, including video rotation.
+        x, y, viewport_width, viewport_height = geometry['stimulus_rect']
+        factor = min(viewport_width / geometry['stimulus_width_px'], viewport_height / geometry['stimulus_height_px'])
+        content_width, content_height = geometry['stimulus_width_px'] * factor, geometry['stimulus_height_px'] * factor
+        geometry['stimulus_rect'] = [x + (viewport_width - content_width) / 2,
+            y + (viewport_height - content_height) / 2, content_width, content_height]
+        geometry['stimulus_coordinate_space'] = 'display'
+    config = ProcessingConfig.model_validate(config).model_dump()
+    result.update(config=config, demonstration=True, assumptions=assumed,
+                  scientific_validation='classroom_demonstration')
+    result['issues'] = [issue for issue in result['issues'] if issue != 'missing_acceptance_criteria']
+    result['ready_for_pilot'] = not result['issues']
+    return result

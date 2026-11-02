@@ -123,6 +123,7 @@ def main():
     prepare = sub.add_parser("prepare", help="Gera configuração a partir da coleta instrumentada")
     prepare.add_argument("--events", type=Path, required=True)
     prepare.add_argument("--settings", type=Path, required=True)
+    prepare.add_argument("--demo", action="store_true", help="Parâmetros aproximados para demonstração")
     detector = sub.add_parser("download-detector")
     detector.add_argument("--models", type=Path, required=True)
     process = sub.add_parser("process")
@@ -139,7 +140,7 @@ def main():
         if args.command == "prepare":
             from collection import prepare_collection
             print(json.dumps(prepare_collection(json.loads(args.events.read_text(encoding="utf-8")),
-                json.loads(args.settings.read_text(encoding="utf-8"))), ensure_ascii=False, allow_nan=False))
+                json.loads(args.settings.read_text(encoding="utf-8")), demonstration=args.demo), ensure_ascii=False, allow_nan=False))
             return
         if args.command == "config-schema":
             from config import ProcessingConfig

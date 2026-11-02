@@ -27,6 +27,7 @@ class Geometry(Strict):
     stimulus_rect: tuple[FiniteFloat, FiniteFloat, FiniteFloat, FiniteFloat]
     stimulus_width_px: int = Field(gt=0)
     stimulus_height_px: int = Field(gt=0)
+    stimulus_coordinate_space: Literal["encoded", "display"] = "encoded"
 
     @model_validator(mode="after")
     def check(self):
@@ -100,6 +101,7 @@ class Criteria(Strict):
 class ProcessingConfig(Strict):
     schema_version: Literal[1]
     capture: Capture
+    demonstration: bool = False
     geometry: Geometry | None = None
     synchronization: Synchronization | None = None
     targets: list[Target] = Field(default_factory=list, max_length=10000)
