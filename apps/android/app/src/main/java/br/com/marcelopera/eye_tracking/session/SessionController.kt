@@ -13,6 +13,7 @@ import kotlinx.coroutines.cancel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import java.io.File
+import org.json.JSONObject
 
 class SessionController(
     private val store: SessionStore,
@@ -130,6 +131,7 @@ class SessionController(
     }
 
     fun onHostDestroyed() {
+        active?.hostMeasurements = host?.telemetry() ?: emptyList()
         if (active != null && active?.finalizeStarted != true) interrupt()
         host = null
         if (active == null) scope.cancel()
@@ -184,6 +186,12 @@ class SessionController(
                 "$index,${position[0]},${position[1]},${display.width},${display.height}",
                 display.frameTimeNanos,
             )
+            if (display.screenX.isFinite() && display.screenY.isFinite()) {
+                session.events += SessionEvent("target_v1", display.frameTimeNanos, FRAME_CLOCK,
+                    JSONObject().put("phase", if (eventName == "calibracao") "calibration" else "validation")
+                        .put("x_px", display.screenX).put("y_px", display.screenY)
+                        .put("duration_ms", POINT_MS).put("committed", display.committed).toString())
+            }
             delay(POINT_MS)
         }
     }
@@ -264,7 +272,8 @@ class SessionController(
                 handle,
                 session.config.experimentId,
                 completed,
-                session.events.toList(),
+                session.events.toList() + (session.recording?.telemetry() ?: emptyList()) +
+                    (host?.telemetry() ?: session.hostMeasurements),
             )
         }
 
@@ -320,6 +329,7 @@ class SessionController(
         val token: Long,
     ) {
         val events = mutableListOf<SessionEvent>()
+        var hostMeasurements: List<SessionEvent> = emptyList()
         var handle: SessionHandle? = null
         var recording: Recording? = null
         var recordingStarted = false

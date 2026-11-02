@@ -4,7 +4,7 @@ O aplicativo consulta um experimento publicado pelo código, baixa o estímulo e
 
 Para uso na rede local configure `WEB_HOST=0.0.0.0` no `.env` do Compose e informe no celular o endereço do computador, por exemplo `http://192.168.1.10:8080`. O serviço atual não possui autenticação nem TLS: a gravação e o código do participante trafegam em texto aberto via HTTP. Use apenas dados sintéticos em rede controlada até configurar proteção adequada. O recebimento não significa processamento ou validação científica.
 
-Novas coletas registram `amostra_relogios_v1` no início, aproximadamente a cada segundo e na finalização. Em `dados`, a tupla contém `System.nanoTime`, `elapsedRealtimeNanos` antes e depois da leitura, em nanossegundos. A diferença entre as duas leituras de elapsed delimita o intervalo de medição; não é uma medida do erro da câmera ou da tela. Os eventos mantêm seus relógios originais. Essas amostras não relacionam os PTS do vídeo da câmera nem comprovam quais quadros do estímulo foram apresentados: a sincronização continua não validada, inclusive no Android 13. Coletas antigas não são alteradas.
+Novas coletas usam CameraX ImageAnalysis, MediaCodec e Media3 para registrar a relação entre PTS gravados, timestamps da câmera, quadros renderizados, alvos e área de apresentação. O JSON declara `schema_version: 2` e preserva os eventos anteriores. Veja o [contrato e a operação do piloto](../../docs/coleta-instrumentada.md). O painel gera a configuração com esses registros e as medidas físicas/temporais do pesquisador. A precisão e a incerteza temporal no aparelho continuam exigindo medição.
 
 O protocolo piloto apresenta cinco posições de calibração duas vezes, por dois segundos cada, seguidas do vídeo e de cinco posições de validação diferentes. Os valores são provisórios. Os arquivos ficam em `files/sessoes/<id>/`, no armazenamento privado; o backup está desativado.
 
@@ -23,7 +23,7 @@ Fluxo: ação da tela → `SessionViewModel` valida e atualiza o estado → `Ses
 
 As fases são explícitas (`PreparingCamera`, `MarkerA`, `Calibration`, `Rest`, `Stimulus`, `Validation`, `MarkerB`, `Finalizing`, entre outras). O destino de navegação é separado da fase da coleta. Uma gravação em andamento nunca é retomada automaticamente após recriação, segundo plano ou interrupção.
 
-A preparação guarda apenas o texto digitado, o ID confirmado, a URI do vídeo e o destino da tela no estado salvo. Player, câmera, `VideoView` e a Activity não são retidos pelo ViewModel. A URI é revalidada ao retornar à tela e, se o acesso tiver sido perdido, o app pede uma nova consulta ao experimento.
+A preparação guarda apenas o texto digitado, o ID confirmado, a URI do vídeo e o destino da tela no estado salvo. Player, câmera e a Activity não são retidos pelo ViewModel. A URI é revalidada ao retornar à tela e, se o acesso tiver sido perdido, o app pede uma nova consulta ao experimento.
 
 A permissão de câmera usa a Activity Result API. O botão Voltar usa `OnBackPressedDispatcher`: na preparação retorna à identificação; durante a coleta interrompe e finaliza os arquivos; durante a finalização não inicia outra coleta. Textos estão em `strings.xml` e as cores da interface têm variantes clara e escura. As barras do sistema e o teclado são tratados por insets; a área usada para apresentar alvos é a mesma cuja largura e altura são registradas.
 
@@ -49,7 +49,7 @@ O lint pode apresentar avisos, inclusive sobre orientação fixa e configuraçã
 
 - Sessões interrompidas com gravação e metadados são colocadas na fila para envio manual. Uma interrupção abrupta antes de registrar os dados de envio pode exigir recuperação manual.
 - Não há retomada parcial de upload: uma nova tentativa reenvia os arquivos completos.
-- O arquivo `sessao.json` registra eventos e coordenadas dos alvos, mas ainda não contém PTS do vídeo de estímulo, geometria completa, hashes nem a sincronização validada com os quadros da câmera. Ele não substitui o pacote descrito em `docs/contexto-projeto.md`.
+- A instrumentação registra PTS, correspondência com imagens e renderização, alvos e geometria em pixels. Medidas físicas e incerteza temporal empírica são informadas no painel. Não é o manifesto de coleta proposto no contrato v1.
 - Um encerramento abrupto do processo durante a sessão pode deixar uma gravação parcial sem metadados finais; o app não retoma essa gravação.
 - É necessário testar gravação, reprodução, interrupções, recriação, tema escuro e barras do sistema em um aparelho antes de usar os dados para pesquisa.
 

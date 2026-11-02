@@ -28,7 +28,7 @@ docker compose up --build -d --wait
 - Documentação interativa: [http://localhost:8080/docs](http://localhost:8080/docs).
 - Contrato OpenAPI: [http://localhost:8080/openapi.json](http://localhost:8080/openapi.json).
 
-A interface permite criar experimentos, receber coletas Android, executar análises de olhar e inspecionar/exportar resultados. A [pipeline experimental](docs/pipeline.md) usa iTracker congelado e MediaPipe, com calibração e avaliação condicionadas às medidas e à sincronização fornecidas. Baixe e verifique os modelos conforme essa documentação antes de executar análises.
+A interface permite criar experimentos, receber coletas Android, executar análises de olhar e inspecionar/exportar resultados. A [coleta instrumentada](docs/coleta-instrumentada.md) prepara os dados e as medidas para o piloto. A [pipeline experimental](docs/pipeline.md) usa iTracker congelado e MediaPipe, com calibração e avaliação condicionadas às medidas e à sincronização fornecidas. Baixe e verifique os modelos conforme essa documentação antes de executar análises.
 
 São dois containers: o webapp servido pelo Nginx e uma API Python. O Nginx encaminha as chamadas para a API pela rede interna. O Compose aguarda a API passar pelo healthcheck antes de iniciar a interface.
 
@@ -70,7 +70,7 @@ O aplicativo Android mantém seu ambiente e build próprios, descritos em [apps/
 | ☐ **5. Medir** | Dia 6 | Repetir os testes e organizar erros, falhas e tempo de processamento. | Há uma tabela ou gráfico com resultados reais e limitações. |
 | ☐ **6. Apresentar** | Dia 7 | Preparar slides, ensaiar e gravar uma demonstração de reserva. | Apresentação e demonstração estão prontas. |
 
-O roadmap descreve o fluxo de pesquisa completo. O envio inicial de arquivos está disponível; coleta cientificamente validada, processamento e visualização de resultados reais ainda não estão concluídos.
+O roadmap descreve o fluxo de pesquisa completo. O software cobre envio, processamento e consulta de resultados experimentais. Os marcos da coleta em aparelho, sincronização medida e precisão nos alvos ainda dependem do piloto descrito em [coleta instrumentada](docs/coleta-instrumentada.md).
 
 Os dias são uma sequência proposta, não garantia de duração. Marcar uma etapa somente após conferir sua entrega. Ainda não foi verificado aqui se o novo app realiza a coleta.
 
@@ -81,8 +81,8 @@ Delegar **uma etapa por vez**, usando a coluna “Pronto quando” como critéri
 ## Escopo desta entrega
 
 - App simples para coleta e envio; processamento no PC Windows, em containers.
-- A implementação de processamento será tratada no [plano do iTracker pré-treinado](docs/plano-itracker-pretreinado.md), com decisões e validação próprias.
-- Base de infraestrutura: React/TypeScript, Nginx, FastAPI, uv e Docker Compose. A API atual expõe estado e informações do serviço e não persiste dados.
+- O processamento implementado está documentado na [pipeline](docs/pipeline.md); o [plano do iTracker pré-treinado](docs/plano-itracker-pretreinado.md) preserva as decisões de origem.
+- Base de infraestrutura: React/TypeScript, Nginx, FastAPI, uv e Docker Compose. A API persiste experimentos, coletas, execuções e resultados em volume local.
 - Atualizar os objetivos da proposta durante a semana. A revisão sistemática e o benchmark entre métodos continuam como trabalho do mestrado, sem precisar estar concluídos nesta demonstração.
 
 ## Onde trabalhar
@@ -92,7 +92,7 @@ Delegar **uma etapa por vez**, usando a coluna “Pronto quando” como critéri
 | [apps/android](apps/android/) | Aplicativo de coleta |
 | [apps/web](apps/web/) | Interface React/TypeScript e Nginx |
 | [services/api](services/api/) | Único serviço Python, com FastAPI e uv |
-| [ml](ml/) | Área reservada para processamento |
+| [ml](ml/) | Pipeline de processamento e testes |
 | [infra](infra/) | Documentação dos containers; [Compose na raiz](compose.yaml) |
 | [docs](docs/) | Material de referência e planos |
 

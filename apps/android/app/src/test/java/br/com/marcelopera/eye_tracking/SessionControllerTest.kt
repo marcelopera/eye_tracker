@@ -32,6 +32,23 @@ import java.io.File
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class SessionControllerTest {
+    @Test fun hostAndCameraTelemetrySurviveHostDestruction() = runTest {
+        val cameraEvent = SessionEvent("camera_frame_v1", 41, "frameTimeNanos", "{}")
+        val displayEvent = SessionEvent("display_v1", 40, "frameTimeNanos", "{}")
+        val store = FakeStore()
+        val listener = FakeListener()
+        val recording = FakeRecording(measurements = listOf(cameraEvent))
+        val host = FakeHost(videoGate = CompletableDeferred(), measurements = listOf(displayEvent))
+        val controller = controller(store, host, recording, listener, this)
+        controller.start(CONFIG, TOKEN)
+        advanceUntilIdle()
+        controller.onHostDestroyed()
+        advanceUntilIdle()
+        assertTrue(listener.result is SessionResult.Interrupted)
+        assertTrue(store.savedEvents.contains(cameraEvent))
+        assertTrue(store.savedEvents.contains(displayEvent))
+    }
+
 
     @Test
     fun clockSamplesAreBoundedAndStopOnInterruption() = runTest {
@@ -233,10 +250,12 @@ class SessionControllerTest {
     }
 
     private class FakeRecording(
+        val measurements: List<SessionEvent> = emptyList(),
         private val startResult: Boolean = true,
         private val finalize: CompletableDeferred<FinalizeInfo> =
             CompletableDeferred(FinalizeInfo(false, 0)),
     ) : Recording {
+        override fun telemetry(): List<SessionEvent> = measurements
         var stopped = false
         var unbound = false
 
@@ -253,9 +272,11 @@ class SessionControllerTest {
     }
 
     private class FakeHost(
+        val measurements: List<SessionEvent> = emptyList(),
         var playback: VideoPlayback = VideoPlayback.Finished(200),
         var videoGate: CompletableDeferred<VideoPlayback>? = null,
     ) : SessionHost {
+        override fun telemetry(): List<SessionEvent> = measurements
         override suspend fun showPreparing() = Unit
 
         override suspend fun showMarker(flashOn: Boolean): Long = 10

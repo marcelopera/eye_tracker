@@ -120,6 +120,9 @@ def main():
     video.add_argument("--rotation", type=int, choices=(0, 90, 180, 270), required=True)
     video.add_argument("--mirrored", action="store_true")
     sub.add_parser("config-schema", help="JSON Schema da configuração v1")
+    prepare = sub.add_parser("prepare", help="Gera configuração a partir da coleta instrumentada")
+    prepare.add_argument("--events", type=Path, required=True)
+    prepare.add_argument("--settings", type=Path, required=True)
     detector = sub.add_parser("download-detector")
     detector.add_argument("--models", type=Path, required=True)
     process = sub.add_parser("process")
@@ -133,6 +136,11 @@ def main():
     process.add_argument("--progress", type=Path)
     args = parser.parse_args()
     try:
+        if args.command == "prepare":
+            from collection import prepare_collection
+            print(json.dumps(prepare_collection(json.loads(args.events.read_text(encoding="utf-8")),
+                json.loads(args.settings.read_text(encoding="utf-8"))), ensure_ascii=False, allow_nan=False))
+            return
         if args.command == "config-schema":
             from config import ProcessingConfig
             print(json.dumps(ProcessingConfig.model_json_schema(), ensure_ascii=False, indent=2))
@@ -169,7 +177,7 @@ def main():
                 inputs = {name: data[name] for name in data.files}
         prediction, features = infer(args.models, inputs)
         print(json.dumps({"prediction_cm": prediction[0].tolist(), "features": features[0].tolist(), "model_revision": REVISION, "weights_sha256": FILES["itracker25x_iter_92000.caffemodel"][1]}, allow_nan=False))
-    except (ValueError, OSError, cv2.error, av.FFmpegError, KeyError) as error:
+    except (ValueError, TypeError, OSError, cv2.error, av.FFmpegError, KeyError) as error:
         parser.exit(1, f"Erro: {error}\n")
 
 

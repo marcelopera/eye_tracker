@@ -31,6 +31,7 @@ class SessionRepository(private val filesDir: File) : SessionStore {
         withContext(Dispatchers.IO) {
             try {
                 val metadata = JSONObject()
+                metadata.put("schema_version", 2)
                 metadata.put("experimento", experimentId)
                 metadata.put("coleta_local", handle.sessionId)
                 metadata.put("estado", if (completed) "concluida" else "interrompida")

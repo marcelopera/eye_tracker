@@ -79,6 +79,8 @@ def test_complete_controlled_pipeline_with_calibration_validation_and_stimulus(t
     events = tmp_path / 'events.json';events.write_text(json.dumps({"estado":"concluida","eventos":[]}))
     report = process_session(video, events, tmp_path, config, tmp_path/'results', preprocessor_factory=AllFaces, model_factory=Model)
     assert report['calibration']['status'] == 'available'
+    assert {p['phase'] for p in report['previews']} == {'calibration', 'validation', 'stimulus'}
+    assert len(list((tmp_path/'results').glob('crops-*.jpg'))) == 3
     assert report['validation']['baseline']['evaluated_frames'] == 2
     assert report['validation']['calibrated']['evaluated_frames'] == 2
     rows = [json.loads(line) for line in (tmp_path/'results/samples.jsonl').read_text().splitlines()]
