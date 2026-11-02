@@ -27,7 +27,7 @@ def test_info_contract_marks_capabilities_as_unavailable() -> None:
         "version": "0.1.0",
         "description": "Base de coleta e processamento de olhar.",
         "capabilities": {
-            "session_upload": False,
+            "session_upload": True,
             "gaze_processing": False,
         },
     }
@@ -88,3 +88,37 @@ def test_video_protocol_publication_and_immutability(tmp_path, monkeypatch) -> N
     with video.open("rb") as source:
         assert client.put(url + "/stimulus", files={"file": ("test.mp4", source, "video/mp4")}).status_code == 409
     assert client.get(url).json()["code"] == published.json()["code"]
+
+
+def test_session_receipt_and_retry(tmp_path, monkeypatch):
+    import hashlib
+    import json
+    import uuid
+
+    monkeypatch.setenv("EYE_TRACKER_DATA_DIR", str(tmp_path))
+    experiment = client.post("/api/experiments", json={"name": "Estudo"}, headers={"Idempotency-Key": "session"}).json()
+    url = f"/api/experiments/{experiment['id']}"
+    video = tmp_path / "video.mp4"
+    subprocess.run(["ffmpeg", "-v", "error", "-f", "lavfi", "-i", "color=c=black:s=64x64:d=1", "-c:v", "libx264", "-pix_fmt", "yuv420p", str(video)], check=True)
+    with video.open("rb") as source:
+        assert client.put(url + "/stimulus", files={"file": ("video.mp4", source, "video/mp4")}).status_code == 200
+    client.put(url + "/protocol")
+    published = client.post(url + "/publish").json()
+    assert client.get('/api/published-experiments/' + published['code'].lower()).json()['id'] == experiment['id']
+    assert client.get('/api/published-experiments/UNKNOWN').status_code == 404
+    local_id = str(uuid.uuid4())
+    payload = {"experiment_id": experiment["id"], "local_id": local_id, "participant_code": "P01"}
+    session = client.post("/api/sessions", json=payload).json()
+    assert client.post("/api/sessions", json=payload).json() == session
+    assert client.post("/api/sessions", json={**payload, "participant_code": "P02"}).status_code == 409
+    metadata = json.dumps({"experimento": experiment["id"], "coleta_local": local_id, "estado": "concluida", "eventos": []}).encode()
+    video_bytes = video.read_bytes()
+    hashes = {"video_sha256": hashlib.sha256(video_bytes).hexdigest(), "events_sha256": hashlib.sha256(metadata).hexdigest()}
+    files = {"video": ("face.mp4", video_bytes, "video/mp4"), "events": ("sessao.json", metadata, "application/json")}
+    upload_url = f"/api/sessions/{session['id']}/files"
+    assert client.put(upload_url, data={**hashes, "events_sha256": "0" * 64}, files=files).status_code == 422
+    assert client.put(upload_url, data=hashes, files=files).json()["received"] is True
+    assert client.put(upload_url, data=hashes, files=files).json()["received"] is True
+    assert client.put(upload_url, data={**hashes, "video_sha256": "0" * 64}, files=files).status_code == 409
+    assert (tmp_path / "sessions" / session["id"] / "face.mp4").read_bytes() == video_bytes
+    assert (tmp_path / "sessions" / session["id"] / "sessao.json").read_bytes() == metadata

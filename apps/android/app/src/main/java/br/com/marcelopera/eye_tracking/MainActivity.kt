@@ -1,7 +1,12 @@
 package br.com.marcelopera.eye_tracking
 
 import android.Manifest
-import android.content.Intent
+import android.app.AlertDialog
+import android.widget.EditText
+import android.widget.Toast
+import br.com.marcelopera.eye_tracking.data.ApiClient
+import org.json.JSONObject
+import java.io.File
 import android.content.pm.PackageManager
 import android.graphics.Color
 import android.graphics.drawable.GradientDrawable
@@ -72,18 +77,6 @@ class MainActivity : AppCompatActivity(), SessionHost {
     private var completionScreen: CompletionScreen? = null
     private var sessionContent: FrameLayout? = null
 
-    private val pickVideo = registerForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
-        if (uri != null) {
-            runCatching {
-                contentResolver.takePersistableUriPermission(
-                    uri,
-                    Intent.FLAG_GRANT_READ_URI_PERMISSION,
-                )
-            }
-            viewModel.onVideoSelected(uri.toString())
-        }
-    }
-
     private val cameraPermission = registerForActivityResult(
         ActivityResultContracts.RequestPermission(),
     ) { granted ->
@@ -125,6 +118,17 @@ class MainActivity : AppCompatActivity(), SessionHost {
 
                 override fun onFinished(token: Long, result: SessionResult) {
                     viewModel.onFinished(token, result)
+                    if (result is SessionResult.Completed || result is SessionResult.Interrupted) {
+                        val id = result.sessionId
+                        val directory = id?.let { File(filesDir, "sessoes/$it") }
+                        if (directory != null && File(directory, "face.mp4").isFile && File(directory, "sessao.json").isFile) {
+                            val prefs = getSharedPreferences("connection", MODE_PRIVATE)
+                            val data = JSONObject().put("base", prefs.getString("base", "")).put("participant", prefs.getString("participant", "")).put("experiment", viewModel.uiState.value.experimentId)
+                            val saved = runCatching { File(directory, "upload.json").writeText(data.toString()) }.isSuccess
+                            if (saved && result is SessionResult.Completed) uploadSession(id)
+                            if (!saved) Toast.makeText(this@MainActivity, "Não foi possível registrar o envio; os arquivos permanecem no aparelho.", Toast.LENGTH_LONG).show()
+                        }
+                    }
                 }
             },
             recordingEngines = RecordingEngineFactory {
@@ -294,7 +298,8 @@ class MainActivity : AppCompatActivity(), SessionHost {
                         context = this,
                         initialState = state,
                         onInputChanged = viewModel::onExperimentInputChanged,
-                        onContinue = viewModel::continueFromIdentification,
+                        onContinue = ::prepareExperiment,
+                        onPending = ::showPendingUploads,
                     )
                     identificationScreen = screen
                     replaceContent(screen.root)
@@ -304,7 +309,6 @@ class MainActivity : AppCompatActivity(), SessionHost {
                     val screen = PreparationScreen(
                         context = this,
                         initialState = state,
-                        onSelectVideo = { pickVideo.launch(arrayOf("video/*")) },
                         onStart = viewModel::onStartClicked,
                         onChangeId = viewModel::backToIdentification,
                     )
@@ -340,6 +344,7 @@ class MainActivity : AppCompatActivity(), SessionHost {
                         context = this,
                         initialState = state,
                         onBackToStart = viewModel::resetToIdentification,
+                        onUpload = { state.sessionId?.let(::uploadSession) },
                     )
                     completionScreen = screen
                     replaceContent(screen.root)
@@ -410,6 +415,72 @@ class MainActivity : AppCompatActivity(), SessionHost {
             )
         }
         return box
+    }
+
+
+    private fun prepareExperiment() {
+        val code = viewModel.uiState.value.experimentInput.trim()
+        if (code.isEmpty()) { viewModel.continueFromIdentification(); return }
+        val prefs = getSharedPreferences("connection", MODE_PRIVATE)
+        val layout = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(dp(24), 0, dp(24), 0) }
+        val address = EditText(this).apply { hint = "Endereço do servidor (ex.: http://192.168.1.10:8080)"; setText(prefs.getString("base", "")); setSingleLine() }
+        val participant = EditText(this).apply { hint = "Código pseudônimo do participante"; setText(prefs.getString("participant", "")); setSingleLine() }
+        layout.addView(address); layout.addView(participant)
+        AlertDialog.Builder(this).setTitle("Conectar ao experimento").setView(layout)
+            .setNegativeButton("Cancelar", null).setPositiveButton("Consultar") { _, _ ->
+                val base = address.text.toString().trim().trimEnd('/')
+                val person = participant.text.toString().trim()
+                val parsed = runCatching { java.net.URI(base) }.getOrNull()
+                if (parsed == null || parsed.scheme !in listOf("http", "https") || parsed.host == null || parsed.userInfo != null || parsed.path.orEmpty() !in listOf("", "/") || parsed.query != null || parsed.fragment != null || person.isEmpty() || person.length > 200) {
+                    Toast.makeText(this, "Informe um endereço válido e o código do participante.", Toast.LENGTH_LONG).show()
+                } else {
+                    val progress = AlertDialog.Builder(this).setMessage("Consultando experimento e baixando vídeo…").setCancelable(false).create()
+                    progress.show()
+                    lifecycleScope.launch {
+                        val result = withContext(Dispatchers.IO) { runCatching {
+                            val protocol = JSONObject(assets.open("protocol.json").bufferedReader().use { it.readText() })
+                            ApiClient(base).fetchExperiment(code, protocol, filesDir)
+                        } }
+                        progress.dismiss()
+                        result.onSuccess { (id, uri) ->
+                            prefs.edit().putString("base", base).putString("participant", person).apply()
+                            viewModel.onExperimentInputChanged(id)
+                            viewModel.continueFromIdentification()
+                            viewModel.onVideoSelected(uri)
+                        }.onFailure { Toast.makeText(this@MainActivity, it.message ?: "Falha de conexão.", Toast.LENGTH_LONG).show() }
+                    }
+                }
+            }.show()
+    }
+
+    private fun showPendingUploads() {
+        val sessions = File(filesDir, "sessoes").listFiles()?.filter {
+            it.isDirectory && File(it, "upload.json").isFile && !File(it, "recebida.json").isFile
+        }?.sortedBy { it.name }.orEmpty()
+        if (sessions.isEmpty()) {
+            Toast.makeText(this, "Nenhuma coleta pendente.", Toast.LENGTH_SHORT).show()
+            return
+        }
+        AlertDialog.Builder(this).setTitle("Coletas pendentes")
+            .setItems(sessions.map { it.name }.toTypedArray()) { _, index -> uploadSession(sessions[index].name) }
+            .setNegativeButton("Cancelar", null).show()
+    }
+
+    private fun uploadSession(id: String) {
+        val progress = AlertDialog.Builder(this).setMessage("Enviando coleta…").setCancelable(false).create()
+        progress.show()
+        lifecycleScope.launch {
+            val result = withContext(Dispatchers.IO) { runCatching {
+                val directory = File(filesDir, "sessoes/$id")
+                val data = JSONObject(File(directory, "upload.json").readText())
+                ApiClient(data.getString("base")).upload(data.getString("experiment"), data.getString("participant"), id, directory).also {
+                    File(directory, "recebida.json").writeText(JSONObject().put("id", it).toString())
+                }
+            } }
+            progress.dismiss()
+            result.onSuccess { AlertDialog.Builder(this@MainActivity).setMessage("Coleta recebida pelo servidor. ID: $it. Os arquivos permanecem no aparelho.").setPositiveButton("OK", null).show() }
+                .onFailure { AlertDialog.Builder(this@MainActivity).setMessage("Falha no envio: ${it.message}. Os arquivos permanecem no aparelho; tente novamente.").setPositiveButton("OK", null).show() }
+        }
     }
 
     private fun requestCameraPermission() {

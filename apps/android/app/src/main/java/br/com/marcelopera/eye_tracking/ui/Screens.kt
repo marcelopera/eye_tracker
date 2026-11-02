@@ -23,6 +23,7 @@ class IdentificationScreen(
     initialState: SessionUiState,
     private val onInputChanged: (String) -> Unit,
     private val onContinue: () -> Unit,
+    private val onPending: () -> Unit,
 ) {
     val root: View
     private val input: EditText
@@ -65,6 +66,8 @@ class IdentificationScreen(
             ),
         )
 
+        page.second.addView(buildButton(context, "Coletas pendentes", onPending))
+
         input.doAfterTextChanged { text ->
             if (!writingText) onInputChanged(text?.toString().orEmpty())
         }
@@ -84,7 +87,6 @@ class IdentificationScreen(
 class PreparationScreen(
     context: Context,
     initialState: SessionUiState,
-    private val onSelectVideo: () -> Unit,
     private val onStart: () -> Unit,
     private val onChangeId: () -> Unit,
 ) {
@@ -151,13 +153,7 @@ class PreparationScreen(
         )
         box.addView(notice)
 
-        box.addView(
-            buildButton(
-                context,
-                context.getString(R.string.select_video_action),
-                onSelectVideo,
-            ),
-        )
+
         box.addView(buildButton(context, context.getString(R.string.start_action), onStart))
         box.addView(buildButton(context, context.getString(R.string.change_id_action), onChangeId))
         box.addView(
@@ -190,6 +186,7 @@ class CompletionScreen(
     context: Context,
     initialState: SessionUiState,
     onBackToStart: () -> Unit,
+    onUpload: () -> Unit,
 ) {
     val root: View
     private val sessionId: TextView
@@ -218,6 +215,7 @@ class CompletionScreen(
                 color = ContextCompat.getColor(context, R.color.on_surface_variant),
             ),
         )
+        page.second.addView(buildButton(context, "Enviar novamente", onUpload))
         page.second.addView(
             buildButton(
                 context,
