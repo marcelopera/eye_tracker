@@ -4,6 +4,7 @@ import br.com.marcelopera.eye_tracking.data.SessionEvent
 import br.com.marcelopera.eye_tracking.data.SessionHandle
 import br.com.marcelopera.eye_tracking.data.SessionStore
 import br.com.marcelopera.eye_tracking.session.FailureReason
+import br.com.marcelopera.eye_tracking.session.ClockSample
 import br.com.marcelopera.eye_tracking.session.FinalizeInfo
 import br.com.marcelopera.eye_tracking.session.Recording
 import br.com.marcelopera.eye_tracking.session.RecordingEngine
@@ -19,6 +20,8 @@ import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.test.advanceUntilIdle
+import kotlinx.coroutines.test.advanceTimeBy
+import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -29,6 +32,35 @@ import java.io.File
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class SessionControllerTest {
+
+    @Test
+    fun clockSamplesAreBoundedAndStopOnInterruption() = runTest {
+        val store = FakeStore()
+        val listener = FakeListener()
+        var sample = 0L
+        val controller = SessionController(
+            store = store,
+            listener = listener,
+            recordingEngines = RecordingEngineFactory { RecordingEngine { FakeRecording() } },
+            scope = this,
+            timeSource = { 42L },
+            clockSampleSource = { ClockSample(100L + sample, 200L + sample, 102L + sample).also { sample++ } },
+        ).apply { attachHost(FakeHost()) }
+
+        controller.start(CONFIG, TOKEN)
+        runCurrent()
+        advanceTimeBy(2_500)
+        runCurrent()
+        controller.interrupt()
+        advanceUntilIdle()
+
+        val samples = store.savedEvents.filter { it.name == "amostra_relogios_v1" }
+        assertEquals(5, samples.size)
+        assertEquals("200,100,102", samples.first().data)
+        assertEquals("elapsedRealtimeNanos", samples.first().clock)
+        assertEquals(100L, samples.first().timeNanos)
+        assertTrue(listener.result is SessionResult.Interrupted)
+    }
 
     @Test
     fun completionWaitsForRecordingFinalizeAndPersistence() = runTest {
