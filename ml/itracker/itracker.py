@@ -7,8 +7,11 @@ from pathlib import Path
 import tempfile
 import urllib.request
 
+import av
 import cv2
 import numpy as np
+
+from video import camera_frames
 
 REVISION = "e4af90da3c4c9068fbce433fa648d1f9bc7a394b"
 BASE = f"https://raw.githubusercontent.com/CSAILVision/GazeCapture/{REVISION}/models"
@@ -73,6 +76,24 @@ def infer(directory, inputs):
     return prediction, features
 
 
+def inspect_video(source, destination, rotation, mirrored):
+    """Write an atomic diagnostic record for each decoded frame."""
+    if source.resolve() == destination.resolve():
+        raise ValueError("A saída não pode substituir o vídeo de entrada")
+    fd, temporary = tempfile.mkstemp(dir=destination.parent, prefix=".video-")
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as output:
+            for image, timing in camera_frames(source, rotation, mirrored):
+                record = {**timing, "width": image.shape[1], "height": image.shape[0],
+                          "stimulus_time_ms": None, "prediction_cm": None,
+                          "valid": False, "reason": "inferência não implementada",
+                          "stimulus_time_reason": "sincronização não comprovada"}
+                output.write(json.dumps(record, ensure_ascii=False, allow_nan=False) + "\n")
+        os.replace(temporary, destination)
+    finally:
+        Path(temporary).unlink(missing_ok=True)
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     sub = parser.add_subparsers(dest="command", required=True)
@@ -81,8 +102,16 @@ def main():
         command.add_argument("--models", type=Path, required=True)
         if name == "infer":
             command.add_argument("--input", type=Path, required=True, help="NPZ com face, left, right e grid já pré-processados")
+    video = sub.add_parser("inspect-video", help="Decodifica quadros e registra PTS, sem inferência")
+    video.add_argument("--video", type=Path, required=True)
+    video.add_argument("--output", type=Path, required=True)
+    video.add_argument("--rotation", type=int, choices=(0, 90, 180, 270), required=True)
+    video.add_argument("--mirrored", action="store_true")
     args = parser.parse_args()
     try:
+        if args.command == "inspect-video":
+            inspect_video(args.video, args.output, args.rotation, args.mirrored)
+            return
         if args.command == "download":
             download(args.models)
             print(f"Arquivos verificados: {args.models}")
@@ -94,7 +123,7 @@ def main():
                 inputs = {name: data[name] for name in data.files}
         prediction, features = infer(args.models, inputs)
         print(json.dumps({"prediction_cm": prediction[0].tolist(), "features": features[0].tolist(), "model_revision": REVISION, "weights_sha256": FILES["itracker25x_iter_92000.caffemodel"][1]}, allow_nan=False))
-    except (ValueError, OSError, cv2.error, KeyError) as error:
+    except (ValueError, OSError, cv2.error, av.FFmpegError, KeyError) as error:
         parser.exit(1, f"Erro: {error}\n")
 
 

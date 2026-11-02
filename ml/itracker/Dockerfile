@@ -5,5 +5,5 @@ RUN apt-get update && apt-get install -y --no-install-recommends libglib2.0-0 li
 WORKDIR /app
 COPY pyproject.toml uv.lock ./
 RUN uv sync --frozen --no-dev
-COPY itracker.py ./
+COPY itracker.py video.py ./
 ENTRYPOINT ["/app/.venv/bin/python", "itracker.py"]
