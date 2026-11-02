@@ -165,11 +165,16 @@ async def upload_stimulus(experiment_id: str, file: UploadFile) -> dict:
             metadata = json.loads(result.stdout)
             video = next(stream for stream in metadata["streams"] if stream["codec_type"] == "video")
             duration = float(metadata["format"]["duration"])
-            valid = result.returncode == 0 and "mp4" in metadata["format"]["format_name"].split(",") and video["codec_name"] == "h264" and 0 < duration <= 30 and video["width"] > 0 and video["height"] > 0
+            if result.returncode != 0 or "mp4" not in metadata["format"]["format_name"].split(","):
+                raise HTTPException(status_code=422, detail="O arquivo não é um MP4 válido.")
+            if video["codec_name"] != "h264":
+                raise HTTPException(status_code=422, detail="O vídeo precisa usar o codec H.264.")
+            if not 0 < duration <= 30:
+                raise HTTPException(status_code=422, detail="O vídeo precisa ter duração maior que zero e de até 30 segundos.")
+            if video["width"] <= 0 or video["height"] <= 0:
+                raise HTTPException(status_code=422, detail="As dimensões do vídeo são inválidas.")
         except (ValueError, KeyError, StopIteration, TypeError):
-            valid = False
-        if not valid:
-            raise HTTPException(status_code=422, detail="Envie um MP4 H.264 válido com até 30 segundos.")
+            raise HTTPException(status_code=422, detail="Não foi possível ler um vídeo MP4 válido no arquivo.")
         final = directory / f"{uuid.uuid4()}.mp4"
         stimulus = {"path": final.name, "name": Path(file.filename or "video.mp4").name, "size": size, "sha256": digest.hexdigest(), "duration": duration, "width": video["width"], "height": video["height"], "container": "mp4", "codec": "h264"}
         old = None

@@ -57,7 +57,9 @@ def test_video_protocol_publication_and_immutability(tmp_path, monkeypatch) -> N
     monkeypatch.setenv("EYE_TRACKER_DATA_DIR", str(tmp_path))
     draft = client.post("/api/experiments", json={"name": "Estudo"}, headers={"Idempotency-Key": "video"}).json()
     url = f"/api/experiments/{draft['id']}"
-    assert client.put(url + "/stimulus", files={"file": ("fake.mp4", b"invalid", "video/mp4")}).status_code == 422
+    invalid = client.put(url + "/stimulus", files={"file": ("fake.mp4", b"invalid", "video/mp4")})
+    assert invalid.status_code == 422
+    assert "MP4" in invalid.json()["detail"]
     video = tmp_path / "test.mp4"
     subprocess.run(["ffmpeg", "-v", "error", "-f", "lavfi", "-i", "color=c=black:s=64x64:d=1", "-c:v", "libx264", "-pix_fmt", "yuv420p", str(video)], check=True)
     with video.open("rb") as source:
@@ -68,7 +70,9 @@ def test_video_protocol_publication_and_immutability(tmp_path, monkeypatch) -> N
     long_video = tmp_path / "long.mp4"
     subprocess.run(["ffmpeg", "-v", "error", "-f", "lavfi", "-i", "color=c=black:s=64x64:r=1:d=31", "-c:v", "libx264", "-pix_fmt", "yuv420p", str(long_video)], check=True)
     with long_video.open("rb") as source:
-        assert client.put(url + "/stimulus", files={"file": ("long.mp4", source, "video/mp4")}).status_code == 422
+        too_long = client.put(url + "/stimulus", files={"file": ("long.mp4", source, "video/mp4")})
+    assert too_long.status_code == 422
+    assert "30 segundos" in too_long.json()["detail"]
     assert client.get(url).json()["stimulus"]["sha256"] == old_hash
     assert client.put(url + "/stimulus", headers={"Content-Length": str(102 * 1024 * 1024)}, content=b"").status_code == 413
     partial = client.get(url + "/stimulus", headers={"Range": "bytes=0-9"})

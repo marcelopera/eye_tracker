@@ -11,6 +11,7 @@ export default function Experiments() {
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
   const [busy, setBusy] = useState(false);
+  const [publishing, setPublishing] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [progress, setProgress] = useState<number | null>(null);
@@ -47,26 +48,30 @@ export default function Experiments() {
     finally { setBusy(false); }
   }
   async function action(path: string, method: string) {
-    if (!selected || busy) return; setBusy(true); setError('');
+    if (!selected || busy) return; setBusy(true); setPublishing(path === 'publish'); setError('');
+    const controller = new AbortController();
+    const timeout = window.setTimeout(() => controller.abort(), 15000);
     try {
-      const response = await fetch(`/api/experiments/${selected.id}/${path}`, { method });
+      const response = await fetch(`/api/experiments/${selected.id}/${path}`, { method, signal: controller.signal });
       const data = await response.json();
       if (!response.ok) throw new Error(typeof data.detail === 'string' ? data.detail : 'Não foi possível concluir a operação.');
-      setSelected(data as Experiment); await load();
-    } catch (err) { setError(err instanceof Error ? err.message : 'Falha na operação.'); }
-    finally { setBusy(false); }
+      setSelected(data as Experiment);
+    } catch (err) { setError(controller.signal.aborted ? 'A API demorou para responder. Confira o estado do experimento e tente novamente.' : err instanceof Error ? err.message : 'Falha na operação.'); }
+    finally { window.clearTimeout(timeout); setBusy(false); setPublishing(false); }
   }
   function upload() {
     if (!selected || !file || busy) return;
     setBusy(true); setError(''); setProgress(0);
     const request = new XMLHttpRequest(); xhr.current = request;
     request.open('PUT', `/api/experiments/${selected.id}/stimulus`);
+    request.timeout = 300_000;
     request.upload.onprogress = event => { if (event.lengthComputable) setProgress(Math.round(event.loaded / event.total * 100)); };
     request.onload = () => {
       if (request.status >= 200 && request.status < 300) { setSelected(JSON.parse(request.responseText) as Experiment); setFile(null); }
       else { try { setError(JSON.parse(request.responseText).detail || 'Falha no envio.'); } catch { setError(request.status === 413 ? 'Vídeo excede o limite de 100 MB.' : 'Falha no envio.'); } }
     };
-    request.onerror = () => setError('Falha de conexão durante o envio.');
+    request.onerror = () => setError('A conexão foi interrompida durante o envio. Confira a conexão com o servidor e se o navegador está em modo offline; depois tente novamente.');
+    request.ontimeout = () => setError('O envio demorou mais de 5 minutos. Verifique a conexão e tente novamente.');
     request.onabort = () => setError('Envio cancelado.');
     request.onloadend = () => { xhr.current = null; setBusy(false); setProgress(null); };
     const form = new FormData(); form.append('file', file); request.send(form);
@@ -82,16 +87,17 @@ export default function Experiments() {
         {!published && <button className="refresh-button" disabled={busy || !name.trim()}>{busy ? 'Aguarde…' : 'Salvar rascunho'}</button>}
       </form>
       {selected && <>
-        <h3>Vídeo de estímulo</h3><p>MP4 H.264, até 30 segundos e 100 MB.</p>
-        {selected.stimulus && <><p>{selected.stimulus.name} · {selected.stimulus.duration.toFixed(1)} s · {selected.stimulus.width} × {selected.stimulus.height}</p><video controls src={`/api/experiments/${selected.id}/stimulus`} /></>}
+        <h3>Vídeo de estímulo</h3><p>MP4 H.264, até 30 segundos e 100 MB. Depois de selecionar o arquivo, clique em Enviar vídeo e aguarde a confirmação.</p>
+        {!selected.stimulus && <p className="experiment-pending" role="status">Nenhum vídeo enviado.</p>}
+        {selected.stimulus && <><p>Vídeo enviado: {selected.stimulus.name} · {selected.stimulus.duration.toFixed(1)} s · {selected.stimulus.width} × {selected.stimulus.height}</p><video controls src={`/api/experiments/${selected.id}/stimulus`} /></>}
         {!published && <><label>Selecionar vídeo <input type="file" accept="video/mp4" onChange={event => setFile(event.target.files?.[0] ?? null)} disabled={busy} /></label>
           <div className="experiment-actions"><button type="button" className="refresh-button" onClick={upload} disabled={busy || !file}>Enviar vídeo</button>{progress !== null && <><progress max="100" value={progress} aria-label="Progresso do envio" /><span>{progress}%</span><button type="button" className="refresh-button" onClick={() => xhr.current?.abort()}>Cancelar envio</button></>}</div></>}
         <h3>Protocolo</h3><p>Android provisório: marcador A, calibração, descanso, estímulo, validação e marcador B. As posições e durações ainda precisam de validação científica.</p>
         {!published && <button className="refresh-button" type="button" disabled={busy} onClick={() => void action('protocol', 'PUT')}>{selected.protocol ? 'Protocolo selecionado' : 'Selecionar protocolo provisório'}</button>}
         <h3>Revisão</h3><p>{selected.name} · {selected.stimulus?.name ?? 'Vídeo pendente'} · {selected.protocol?.label ?? 'Protocolo pendente'}</p>
         {selected.protocol && <p>Fases: {selected.protocol.phases.map(phase => phase.name.replace(/_/g, ' ')).join(' → ')}. Alvos: 2 segundos por posição; descanso: 2 segundos; marcadores: dois flashes de 200 ms.</p>}
-        {selected.pending.map(item => <p key={item}>{item}</p>)}
-        {published ? <p role="status">Publicado. Código: <strong>{selected.code}</strong></p> : <button className="refresh-button" type="button" disabled={busy || selected.pending.length > 0} onClick={() => void action('publish', 'POST')}>Publicar experimento</button>}
+        {selected.pending.length > 0 && <div className="experiment-pending" role="status"><strong>Para publicar:</strong><ul>{selected.pending.map(item => <li key={item}>{item}</li>)}</ul></div>}
+        {published ? <p role="status">Publicado. Código: <strong>{selected.code}</strong></p> : <button className="refresh-button" type="button" disabled={busy || selected.pending.length > 0} onClick={() => void action('publish', 'POST')}>{publishing ? 'Publicando…' : 'Publicar experimento'}</button>}
       </>}
       <p><button className="refresh-button" type="button" disabled={busy} onClick={() => { setEditing(false); setError(''); void load(); }}>Voltar à lista</button></p>
     </> : <>
