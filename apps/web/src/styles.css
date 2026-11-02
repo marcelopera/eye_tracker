@@ -149,3 +149,14 @@ h1 { margin: 0; color: var(--ink); font-size: clamp(32px, 5vw, 42px); font-weigh
 .experiment-pending ul { margin: 6px 0 12px; padding-left: 20px; }
 .delete-button { color: #a33d30; border-color: #e5bdb5; }
 .delete-button:hover:not(:disabled) { color: #852c22; border-color: #c76b5b; background: #fff7f5; }
+
+.primary-button { color: #fff; background: var(--teal); border-color: var(--teal); }
+.primary-button:hover:not(:disabled) { color: #fff; background: var(--teal-dark); border-color: var(--teal-dark); }
+.primary-button:disabled { color: #d7eeea; background: #568f88; border-color: #568f88; }
+.experiment-actions a { text-decoration: none; }
+.session-list > li { display: block; padding-block: 18px; }
+.session-list > li > div { width: 100%; }
+.session-list details { margin-top: 14px; }
+.session-list summary { cursor: pointer; color: var(--muted); font-size: 13px; }
+.demonstration { margin-top: 14px; }
+.experiments .demonstration-video { width: 100%; max-height: none; margin-top: 16px; border-radius: 8px; background: #13171b; }

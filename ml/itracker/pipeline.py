@@ -19,7 +19,7 @@ from itracker import FILES, REVISION, Model, digest
 from preprocess import DetectionFailure, LANDMARKER_SHA256, Preprocessor
 from video import camera_frames
 
-PIPELINE_VERSION = "1.1.0"
+PIPELINE_VERSION = "1.2.0"
 
 
 def write_json(path, value):

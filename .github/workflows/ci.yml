@@ -21,6 +21,12 @@ jobs:
         run: docker compose config --quiet
       - name: Run API tests in Docker
         run: docker build -f services/api/Dockerfile --target test -t eye-tracker-api-test .
+      - name: Install video test dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends ffmpeg
+          ffmpeg -version
+          ffprobe -version
       - uses: astral-sh/setup-uv@v7
       - name: Test video pipeline
         run: uv run --directory ml/itracker --frozen --group dev python -m pytest

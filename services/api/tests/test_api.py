@@ -41,6 +41,8 @@ def test_draft_lifecycle_and_idempotency(tmp_path, monkeypatch) -> None:
     assert created.status_code == 201
     draft = created.json()
     assert draft["state"] == "draft" and draft["code"] is None
+    assert draft["protocol"]["label"] == "Android provisório"
+    assert draft["pending"] == ["Envie um vídeo válido."]
     assert client.post("/api/experiments", json=payload, headers=headers).json()["id"] == draft["id"]
     assert client.post("/api/experiments", json={"name": "Outro"}, headers=headers).status_code == 409
     url = f"/api/experiments/{draft['id']}"
@@ -111,11 +113,10 @@ def test_video_protocol_publication_and_immutability(tmp_path, monkeypatch) -> N
     assert client.put(url + "/stimulus", headers={"Content-Length": str(102 * 1024 * 1024)}, content=b"").status_code == 413
     partial = client.get(url + "/stimulus", headers={"Range": "bytes=0-9"})
     assert partial.status_code == 206 and len(partial.content) == 10
-    assert client.post(url + "/publish").status_code == 409
-    assert client.put(url + "/protocol").json()["protocol"]["label"] == "Android provisório"
     published = client.post(url + "/publish")
     assert published.status_code == 200
     assert published.json()["state"] == "published"
+    assert published.json()["protocol"] == draft["protocol"]
     assert client.post(url + "/publish").json()["code"] == published.json()["code"]
     assert client.patch(url, json={"name": "Mudança"}).status_code == 409
     assert client.put(url + "/protocol").status_code == 409
@@ -136,7 +137,6 @@ def test_session_receipt_and_retry(tmp_path, monkeypatch):
     subprocess.run(["ffmpeg", "-v", "error", "-f", "lavfi", "-i", "color=c=black:s=64x64:d=1", "-c:v", "libx264", "-pix_fmt", "yuv420p", str(video)], check=True)
     with video.open("rb") as source:
         assert client.put(url + "/stimulus", files={"file": ("video.mp4", source, "video/mp4")}).status_code == 200
-    client.put(url + "/protocol")
     published = client.post(url + "/publish").json()
     assert client.get('/api/published-experiments/' + published['code'].lower()).json()['id'] == experiment['id']
     assert client.get('/api/published-experiments/UNKNOWN').status_code == 404
@@ -172,3 +172,22 @@ def test_session_receipt_and_retry(tmp_path, monkeypatch):
     assert client.put(upload_url, data={**hashes, "video_sha256": "0" * 64}, files=files).status_code == 409
     assert (tmp_path / "sessions" / session["id"] / "face.mp4").read_bytes() == video_bytes
     assert (tmp_path / "sessions" / session["id"] / "sessao.json").read_bytes() == metadata
+
+
+def test_legacy_draft_gets_fixed_protocol_without_an_extra_step(tmp_path, monkeypatch):
+    import json
+    from app.experiments import connect, PROTOCOL
+
+    monkeypatch.setenv('EYE_TRACKER_DATA_DIR', str(tmp_path))
+    draft = client.post('/api/experiments', json={'name': 'Antigo'}, headers={'Idempotency-Key': 'legacy'}).json()
+    video = tmp_path / 'videos/stimulus.mp4'
+    video.parent.mkdir()
+    video.write_bytes(b'video')
+    with connect() as db:
+        db.execute('UPDATE experiments SET protocol=NULL,stimulus=? WHERE id=?',
+                   (json.dumps({'path': video.name}), draft['id']))
+    url = '/api/experiments/' + draft['id']
+    assert client.get(url).json()['pending'] == []
+    assert client.get(url).json()['protocol'] == PROTOCOL
+    published = client.post(url + '/publish')
+    assert published.status_code == 200 and published.json()['protocol'] == PROTOCOL

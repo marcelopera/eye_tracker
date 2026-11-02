@@ -108,10 +108,7 @@ export default function Experiments() {
         {selected.stimulus && <><p>Vídeo enviado: {selected.stimulus.name} · {selected.stimulus.duration.toFixed(1)} s · {selected.stimulus.width} × {selected.stimulus.height}</p><video controls src={`/api/experiments/${selected.id}/stimulus`} /></>}
         {!published && <><label>Selecionar vídeo <input type="file" accept="video/mp4" onChange={event => setFile(event.target.files?.[0] ?? null)} disabled={busy} /></label>
           <div className="experiment-actions"><button type="button" className="refresh-button" onClick={upload} disabled={busy || !file}>Enviar vídeo</button>{progress !== null && <><progress max="100" value={progress} aria-label="Progresso do envio" /><span>{progress}%</span><button type="button" className="refresh-button" onClick={() => xhr.current?.abort()}>Cancelar envio</button></>}</div></>}
-        <h3>Protocolo</h3><p>Android provisório: marcador A, calibração, descanso, estímulo, validação e marcador B. As posições e durações ainda precisam de validação científica.</p>
-        {!published && <button className="refresh-button" type="button" disabled={busy} onClick={() => void action('protocol', 'PUT')}>{selected.protocol ? 'Protocolo selecionado' : 'Selecionar protocolo provisório'}</button>}
-        <h3>Revisão</h3><p>{selected.name} · {selected.stimulus?.name ?? 'Vídeo pendente'} · {selected.protocol?.label ?? 'Protocolo pendente'}</p>
-        {selected.protocol && <p>Fases: {selected.protocol.phases.map(phase => phase.name.replace(/_/g, ' ')).join(' → ')}. Alvos: 2 segundos por posição; descanso: 2 segundos; marcadores: dois flashes de 200 ms.</p>}
+        <p>Protocolo fixo: marcadores, calibração, descanso, estímulo e validação. Aplicado automaticamente em todas as coletas.</p>
         {selected.pending.length > 0 && <div className="experiment-pending" role="status"><strong>Para publicar:</strong><ul>{selected.pending.map(item => <li key={item}>{item}</li>)}</ul></div>}
         {published ? <p role="status">Publicado. Código: <strong>{selected.code}</strong></p> : <button className="refresh-button" type="button" disabled={busy || selected.pending.length > 0} onClick={() => void action('publish', 'POST')}>{publishing ? 'Publicando…' : 'Publicar experimento'}</button>}
         {published && <Sessions key={selected.id} experimentId={selected.id} />}

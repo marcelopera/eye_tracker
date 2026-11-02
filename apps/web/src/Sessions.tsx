@@ -1,13 +1,10 @@
-import Analysis from './Analysis';
+import Demonstration from './Demonstration';
 import { useCallback, useEffect, useState } from 'react';
-
-const processingLabels: Record<string, string> = { unavailable: 'Sem execução', queued: 'Na fila', running: 'Processando', completed: 'Concluído', failed: 'Falhou' };
 
 type Session = { id: string; local_id: string; participant_code: string; receipt_status: 'pending' | 'received'; processing_status: string };
 
 export default function Sessions({ experimentId }: { experimentId: string }) {
   const [sessions, setSessions] = useState<Session[]>([]);
-  const [openAnalysis, setOpenAnalysis] = useState<Record<string, boolean>>({});
   const [offset, setOffset] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
@@ -27,18 +24,17 @@ export default function Sessions({ experimentId }: { experimentId: string }) {
 
   return <section aria-label="Coletas">
     <h3>Coletas</h3>
-    <p>O recebimento indica apenas que os arquivos passaram pelas verificações de envio. Abra uma coleta recebida para executar a análise.</p>
+    <p>Gere a demonstração em MP4 depois que os arquivos do participante forem recebidos.</p>
     {error ? <p role="alert">Não foi possível carregar as coletas.</p> : loading ? <p>Carregando coletas…</p> : sessions.length === 0 ? <p>Nenhuma coleta nesta página.</p> :
-      <ul className="experiment-list">{sessions.map(session => <li key={session.id}><div>
+      <ul className="experiment-list session-list">{sessions.map(session => <li key={session.id}><div>
         <strong>Participante: {session.participant_code}</strong>
-        <p>Sessão: {session.id}</p><p>Identificador local: {session.local_id}</p>
-        <p>{session.receipt_status === 'received' ? 'Arquivos recebidos' : 'Aguardando arquivos'} · {processingLabels[session.processing_status] || session.processing_status}</p>
+        <p>{session.receipt_status === 'received' ? 'Arquivos recebidos' : 'Aguardando arquivos'}</p>
+        {session.receipt_status === 'received' && <Demonstration sessionId={session.id} />}
         {session.receipt_status === 'received' && <details><summary>Inspecionar arquivos originais</summary>
-          <p>Vídeo da câmera e eventos originais do protótipo. Os relógios não estão sincronizados com o estímulo; esses arquivos não são resultados de olhar.</p>
+          <p>Sessão: {session.id}</p><p>Identificador local: {session.local_id}</p>
           <video controls preload="none" src={`/api/sessions/${encodeURIComponent(session.id)}/video`} />
           <p><a href={`/api/sessions/${encodeURIComponent(session.id)}/events`} download={`sessao-${session.id}.json`}>Baixar eventos originais</a></p>
         </details>}
-        {session.receipt_status === 'received' && <details onToggle={event => { const opened = event.currentTarget.open; setOpenAnalysis(old => ({ ...old, [session.id]: opened })); }}><summary>Processar e consultar olhar</summary>{openAnalysis[session.id] && <Analysis sessionId={session.id} experimentId={experimentId} />}</details>}
       </div></li>)}</ul>}
     <div className="experiment-actions">
       <button className="refresh-button" type="button" onClick={refresh} disabled={loading}>Atualizar coletas</button>

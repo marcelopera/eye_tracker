@@ -64,3 +64,11 @@ A API agora possui fila persistente local de execuções e consulta/exportação
 Para construir o estágio de testes, use a raiz como contexto: `docker build -f services/api/Dockerfile --target test -t eye-tracker-api-test .`.
 
 A preparação automática de uma coleta instrumentada está disponível em `POST /api/sessions/{id}/analysis-config`, com medidas do piloto em `settings`. Retorna configuração e pendências, verifica o hash dos metadados originais e não inicia inferência. Veja [operação, contrato e limites](../../docs/coleta-instrumentada.md).
+
+## Demonstração em MP4
+
+O protocolo atual é atribuído automaticamente aos novos experimentos e aos rascunhos antigos na publicação. A rota legada `PUT /api/experiments/{id}/protocol` está depreciada; o webapp não precisa chamá-la.
+
+`POST /api/sessions/{id}/demonstration` prepara a configuração automática, valida a instrumentação e cria uma execução `kind=demonstration` na fila persistente. O worker executa a inferência e depois renderiza o MP4 em CPU. `GET /api/runs/{id}` informa estado, progresso e `demonstration_available`. Uma execução só termina como `completed` após a publicação do arquivo completo; falhas permitem nova tentativa. Arquivos originais e o estímulo são conferidos por SHA-256. A migração do SQLite preserva o histórico existente como `kind=analysis`.
+
+`GET /api/runs/{id}/demonstration` serve o MP4 para reprodução, com suporte a Range; `?download=true` oferece o download. O resultado inclui estímulo, ponto calibrado e filtrado, câmera/recortes associados e pipeline, sem faixa superior de título. Usa o tempo e a rotação do estímulo, mantém as lacunas de predição e não altera as coordenadas para esconder erros. O erro de validação e as dimensões da tela vêm da sessão. O arquivo não inclui áudio.
