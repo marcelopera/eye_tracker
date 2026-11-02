@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="br.com.marcelopera.eye_tracking.SessionViewModelTest" tests="9" skipped="0" failures="0" errors="0" timestamp="2026-10-27T20:16:36.423Z" hostname="MARCELOPERA" time="0.044">
+  <properties/>
+  <testcase name="completedSessionIsShownOnlyAfterFinishedCallback" classname="br.com.marcelopera.eye_tracking.SessionViewModelTest" time="0.032"/>
+  <testcase name="staleSessionCallbacksAreIgnored" classname="br.com.marcelopera.eye_tracking.SessionViewModelTest" time="0.002"/>
+  <testcase name="missingVideoBlocksStart" classname="br.com.marcelopera.eye_tracking.SessionViewModelTest" time="0.0"/>
+  <testcase name="deniedPermissionReturnsToPreparation" classname="br.com.marcelopera.eye_tracking.SessionViewModelTest" time="0.003"/>
+  <testcase name="collectingRestoredAfterProcessDeathBecomesInterruptedPreparation" classname="br.com.marcelopera.eye_tracking.SessionViewModelTest" time="0.002"/>
+  <testcase name="inaccessibleVideoIsCleared" classname="br.com.marcelopera.eye_tracking.SessionViewModelTest" time="0.0"/>
+  <testcase name="preparationSurvivesRecreation" classname="br.com.marcelopera.eye_tracking.SessionViewModelTest" time="0.0"/>
+  <testcase name="blankIdDoesNotAdvance" classname="br.com.marcelopera.eye_tracking.SessionViewModelTest" time="0.0"/>
+  <testcase name="validPreparationRequestsPermissionThenStarts" classname="br.com.marcelopera.eye_tracking.SessionViewModelTest" time="0.002"/>
+  <system-out><![CDATA[]]></system-out>
+  <system-err><![CDATA[]]></system-err>
+</testsuite>
