@@ -2,11 +2,11 @@
     <string name="app_name">Eye tracking</string>
 
     <string name="identification_title">Experimento</string>
-    <string name="identification_description">Informe o ID do experimento para preparar a coleta.</string>
-    <string name="experiment_id_hint">ID do experimento</string>
+    <string name="identification_description">Informe o código do experimento publicado para preparar a coleta.</string>
+    <string name="experiment_id_hint">Código do experimento</string>
     <string name="id_required_error">Informe o ID do experimento.</string>
     <string name="continue_action">Continuar</string>
-    <string name="simulated_lookup_note">Protótipo: a consulta ao experimento ainda é simulada.</string>
+    <string name="simulated_lookup_note">O servidor precisa estar acessível pela rede.</string>
 
     <string name="preparation_title">Preparar coleta</string>
     <string name="preparation_description">Experimento: %1$s\n\nSiga as etapas abaixo. Mantenha o celular e a cabeça estáveis durante a sessão.</string>
@@ -18,7 +18,7 @@
     <string name="select_video_action">Selecionar vídeo no celular</string>
     <string name="start_action">Iniciar</string>
     <string name="change_id_action">Alterar ID</string>
-    <string name="simulation_note">Experimento e envio simulados. A câmera grava sem áudio.</string>
+    <string name="simulation_note">A câmera grava sem áudio.</string>
 
     <string name="notice_video_required">Selecione um vídeo antes de iniciar.</string>
     <string name="notice_video_access_lost">O vídeo selecionado não está mais acessível. Selecione novamente.</string>
@@ -34,8 +34,8 @@
     <string name="finalizing">Finalizando…</string>
 
     <string name="completion_title">Coleta finalizada</string>
-    <string name="completion_description">A coleta foi concluída. Não há mais coletas neste experimento simulado.</string>
+    <string name="completion_description">A coleta foi concluída.</string>
     <string name="local_session_id">ID local da coleta\n%1$s</string>
-    <string name="completion_saved">Gravação salva no aparelho. Envio pendente: o servidor ainda não está disponível.</string>
+    <string name="completion_saved">A gravação e os eventos permanecem no aparelho. Confira o resultado do envio.</string>
     <string name="back_to_start">Voltar ao início</string>
 </resources>

@@ -70,7 +70,7 @@ O aplicativo Android mantém seu ambiente e build próprios, descritos em [apps/
 | ☐ **5. Medir** | Dia 6 | Repetir os testes e organizar erros, falhas e tempo de processamento. | Há uma tabela ou gráfico com resultados reais e limitações. |
 | ☐ **6. Apresentar** | Dia 7 | Preparar slides, ensaiar e gravar uma demonstração de reserva. | Apresentação e demonstração estão prontas. |
 
-O roadmap descreve o fluxo de pesquisa completo. A base de containers não conclui coleta validada, envio, processamento nem visualização de resultados reais.
+O roadmap descreve o fluxo de pesquisa completo. O envio inicial de arquivos está disponível; coleta cientificamente validada, processamento e visualização de resultados reais ainda não estão concluídos.
 
 Os dias são uma sequência proposta, não garantia de duração. Marcar uma etapa somente após conferir sua entrega. Ainda não foi verificado aqui se o novo app realiza a coleta.
 

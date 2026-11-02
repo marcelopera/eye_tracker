@@ -2,8 +2,7 @@
 
 Serviço FastAPI. Expõe `GET /api/health` e `GET /api/info`, além de cadastro,
 consulta e edição de rascunhos em `/api/experiments`; a interface
-OpenAPI fica disponível em `/docs` e `/openapi.json`. Upload de sessões e
-processamento de olhar ainda não estão implementados. O estímulo aceita MP4 H.264 com até 30 segundos e 100 MB. O protocolo
+OpenAPI fica disponível em `/docs` e `/openapi.json`. O recebimento de sessões está disponível; o processamento de olhar ainda não está implementado. O estímulo aceita MP4 H.264 com até 30 segundos e 100 MB. O protocolo
 provisório reproduz o Android atual e não foi validado cientificamente. A publicação
 exige vídeo e protocolo e torna o experimento imutável. A criação exige o cabeçalho `Idempotency-Key`;
 a mesma chave e o mesmo conteúdo recuperam o rascunho existente.
@@ -47,3 +46,9 @@ Para executar os testes em um container, sem instalar Python no host:
 ```sh
 docker build --target test -t eye-tracker-api-test services/api
 ```
+
+## Recebimento provisório de coletas
+
+`GET /api/published-experiments/{code}` consulta um experimento publicado. `POST /api/sessions` recebe `experiment_id`, `local_id` (UUID) e `participant_code` e retorna um ID de servidor; repetir com os mesmos dados recupera a sessão. `PUT /api/sessions/{id}/files` recebe multipart com `video`, `events`, `video_sha256` e `events_sha256`. O servidor confere os hashes, a associação dos metadados, a presença de faixa de vídeo e os limites de 500 MB para o vídeo e 5 MB para os eventos. A repetição com os mesmos hashes é idempotente; outros hashes geram conflito. Arquivos e banco ficam no volume de dados. A resposta indica recebimento, não processamento.
+
+O formato recebido é o `sessao.json` original do protótipo com `face.mp4`, não um manifesto v1. Não há dados suficientes para afirmar sincronização, perfil físico ou validade científica. A API não autentica clientes; o HTTP local não cifra os dados. Use dados sintéticos em rede controlada até haver autenticação e TLS.
