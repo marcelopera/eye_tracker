@@ -53,6 +53,40 @@ def test_draft_lifecycle_and_idempotency(tmp_path, monkeypatch) -> None:
     assert client.post("/api/experiments", json=payload).status_code == 422
 
 
+def test_delete_experiment_and_associated_data(tmp_path, monkeypatch):
+    import json
+    from app.experiments import connect
+
+    monkeypatch.setenv("EYE_TRACKER_DATA_DIR", str(tmp_path))
+    experiment = client.post("/api/experiments", json={"name": "Estudo"}, headers={"Idempotency-Key": "delete"}).json()
+    url = f"/api/experiments/{experiment['id']}"
+    video = tmp_path / "videos" / "stimulus.mp4"
+    video.parent.mkdir()
+    video.write_bytes(b"video")
+    session_dir = tmp_path / "sessions" / "session-id"
+    session_dir.mkdir(parents=True)
+    (session_dir / "face.mp4").write_bytes(b"video")
+    run_dir = tmp_path / "runs" / "run-id"
+    run_dir.mkdir(parents=True)
+    (run_dir / "result.json").write_text("{}")
+    with connect() as db:
+        db.execute("UPDATE experiments SET stimulus=?, code=? WHERE id=?", (json.dumps({"path": video.name}), "CODE", experiment["id"]))
+        db.execute("INSERT INTO sessions (id, local_id, experiment_id, participant_code) VALUES (?, ?, ?, ?)", ("session-id", "local-id", experiment["id"], "P01"))
+        db.execute("INSERT INTO processing_runs (id, session_id, status, config, created_at) VALUES (?, ?, ?, ?, ?)", ("run-id", "session-id", "running", "{}", "now"))
+    assert client.delete(url).status_code == 409
+    assert client.get(url).status_code == 200
+    with connect() as db:
+        db.execute("UPDATE processing_runs SET status='completed' WHERE id='run-id'")
+    assert client.delete(url).status_code == 204
+    assert client.delete(url).status_code == 404
+    assert client.get(url).status_code == 404
+    assert client.get("/api/published-experiments/CODE").status_code == 404
+    assert client.get("/api/sessions/session-id").status_code == 404
+    assert not video.exists() and not session_dir.exists() and not run_dir.exists()
+    with connect() as db:
+        assert db.execute("SELECT count(*) FROM processing_runs").fetchone()[0] == 0
+
+
 def test_video_protocol_publication_and_immutability(tmp_path, monkeypatch) -> None:
     monkeypatch.setenv("EYE_TRACKER_DATA_DIR", str(tmp_path))
     draft = client.post("/api/experiments", json={"name": "Estudo"}, headers={"Idempotency-Key": "video"}).json()
