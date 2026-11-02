@@ -59,6 +59,9 @@ def connect():
         finished_at TEXT, error TEXT
     )""")
     db.execute("CREATE UNIQUE INDEX IF NOT EXISTS active_processing ON processing_runs(session_id) WHERE status IN ('queued','running')")
+    if version < 3:
+        db.execute("ALTER TABLE processing_runs ADD COLUMN kind TEXT NOT NULL DEFAULT 'analysis'")
+        db.execute("PRAGMA user_version = 3")
     db.commit()
     try:
         with db:
@@ -85,8 +88,9 @@ def representation(row: sqlite3.Row) -> dict:
         stimulus.pop("path", None)
     return {"id": row["id"], "name": row["name"], "description": row["description"],
             "created_at": row["created_at"], "state": "published" if row["code"] else "draft", "code": row["code"],
-            "published_at": row["published_at"], "stimulus": stimulus, "protocol": json.loads(row["protocol"]) if row["protocol"] else None,
-            "pending": ([] if stimulus else ["Envie um vídeo válido."]) + ([] if row["protocol"] else ["Selecione o protocolo provisório."])}
+            "published_at": row["published_at"], "stimulus": stimulus,
+            "protocol": json.loads(row["protocol"]) if row["code"] and row["protocol"] else PROTOCOL,
+            "pending": [] if row["stimulus"] else ["Envie um vídeo válido."]}
 
 
 def find(db: sqlite3.Connection, experiment_id: str) -> sqlite3.Row:
@@ -107,8 +111,8 @@ def create_draft(draft: DraftInput, idempotency_key: str = Header(min_length=1, 
                 raise HTTPException(status_code=409, detail="Chave de idempotência já usada com outros dados.")
             return representation(existing)
         experiment_id = str(uuid.uuid4())
-        db.execute("INSERT INTO experiments (id, name, description, created_at, idempotency_key, request_hash) VALUES (?, ?, ?, ?, ?, ?)",
-                   (experiment_id, draft.name, draft.description, datetime.now(timezone.utc).isoformat(), idempotency_key, request_hash))
+        db.execute("INSERT INTO experiments (id, name, description, created_at, idempotency_key, request_hash, protocol) VALUES (?, ?, ?, ?, ?, ?, ?)",
+                   (experiment_id, draft.name, draft.description, datetime.now(timezone.utc).isoformat(), idempotency_key, request_hash, json.dumps(PROTOCOL)))
         return representation(find(db, experiment_id))
 
 
@@ -156,7 +160,7 @@ def update_draft(experiment_id: str, draft: DraftInput) -> dict:
         return representation(find(db, experiment_id))
 
 
-@router.put("/{experiment_id}/protocol")
+@router.put("/{experiment_id}/protocol", deprecated=True)
 def set_protocol(experiment_id: str) -> dict:
     with connect() as db:
         db.execute("BEGIN IMMEDIATE")
@@ -247,8 +251,8 @@ def publish_draft(experiment_id: str) -> dict:
         row = find(db, experiment_id)
         if row["code"]:
             return representation(row)
-        if not row["stimulus"] or not row["protocol"]:
-            raise HTTPException(status_code=409, detail="Envie um vídeo e selecione o protocolo antes de publicar.")
+        if not row["stimulus"]:
+            raise HTTPException(status_code=409, detail="Envie um vídeo antes de publicar.")
         path = Path(os.environ.get("EYE_TRACKER_DATA_DIR", "./data")) / "videos" / json.loads(row["stimulus"])["path"]
         if not path.is_file():
             raise HTTPException(status_code=409, detail="O vídeo salvo não está disponível.")
@@ -256,5 +260,6 @@ def publish_draft(experiment_id: str) -> dict:
             code = secrets.token_hex(4).upper()
             if not db.execute("SELECT 1 FROM experiments WHERE code = ?", (code,)).fetchone():
                 break
-        db.execute("UPDATE experiments SET code = ?, published_at = ? WHERE id = ?", (code, datetime.now(timezone.utc).isoformat(), experiment_id))
+        db.execute("UPDATE experiments SET code = ?, published_at = ?, protocol = ? WHERE id = ?",
+                   (code, datetime.now(timezone.utc).isoformat(), json.dumps(PROTOCOL), experiment_id))
         return representation(find(db, experiment_id))

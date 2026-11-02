@@ -92,12 +92,16 @@ class RunView(BaseModel):
     finished_at: str | None
     error: str | None
     config: dict
+    kind: Literal["analysis", "demonstration"]
+    demonstration_available: bool = False
     progress: dict | None = None
 
 
 def view(row):
     result = dict(row)
     result["config"] = json.loads(result["config"])
+    result["demonstration_available"] = (row["status"] == "completed" and
+        (root() / "runs" / row["id"] / "results/demonstration.mp4").is_file())
     try:
         result["progress"] = json.loads((root() / "runs" / row["id"] / "progress.json").read_text())
     except (OSError, ValueError):
@@ -115,15 +119,28 @@ def find_run(run_id):
 
 @router.post("/sessions/{session_id}/runs", response_model=RunView, status_code=202)
 def start_run(session_id: str, data: RunInput):
+    return enqueue_run(session_id, data.config)
+
+
+@router.post("/sessions/{session_id}/demonstration", response_model=RunView, status_code=202)
+def start_demonstration(session_id: str):
+    prepared = collection_config(session_id, PreparationInput(mode="demo"))
+    if prepared["issues"]:
+        raise HTTPException(422, "Esta coleta não tem os dados necessários para gerar a demonstração. "
+                            "Faça uma nova coleta completa com o aplicativo atualizado.")
+    return enqueue_run(session_id, prepared["config"], kind="demonstration")
+
+
+def enqueue_run(session_id, config, *, kind="analysis"):
     if not enabled():
         raise HTTPException(503, "Runtime de processamento não instalado.")
     try:
-        encoded = json.dumps(data.config, allow_nan=False)
+        encoded = json.dumps(config, allow_nan=False)
     except ValueError:
         raise HTTPException(422, "Configuração contém números não finitos.")
     if len(encoded) > 2_000_000:
         raise HTTPException(413, "Configuração excede 2 MB.")
-    if data.config.get("schema_version") != 1 or not isinstance(data.config.get("capture"), dict):
+    if config.get("schema_version") != 1 or not isinstance(config.get("capture"), dict):
         raise HTTPException(422, "Informe schema_version 1 e capture com rotação e espelhamento.")
     with connect() as db:
         db.execute("BEGIN IMMEDIATE")
@@ -136,8 +153,8 @@ def start_run(session_id: str, data: RunInput):
         if active:
             raise HTTPException(409, "Já existe uma execução ativa para esta sessão.")
         run_id = str(uuid4())
-        db.execute("INSERT INTO processing_runs(id,session_id,status,config,created_at) VALUES (?,?,'queued',?,?)",
-                   (run_id, session_id, encoded, now()))
+        db.execute("INSERT INTO processing_runs(id,session_id,status,config,created_at,kind) VALUES (?,?,'queued',?,?,?)",
+                   (run_id, session_id, encoded, now(), kind))
         row = db.execute("SELECT * FROM processing_runs WHERE id = ?", (run_id,)).fetchone()
         return view(row)
 
@@ -168,6 +185,13 @@ def artifact(run_id, filename):
 @router.get("/runs/{run_id}/summary")
 def summary(run_id: str):
     return json.loads(artifact(run_id, "summary.json").read_text())
+
+
+@router.get("/runs/{run_id}/demonstration")
+def demonstration_video(run_id: str, download: bool = False):
+    return FileResponse(artifact(run_id, "demonstration.mp4"), media_type="video/mp4",
+                        filename=f"demonstracao-{run_id}.mp4",
+                        content_disposition_type="attachment" if download else "inline")
 
 
 @router.get("/runs/{run_id}/samples")
@@ -246,13 +270,15 @@ def execute(row):
             if digest.hexdigest() != session[column]:
                 raise ValueError("Integridade dos arquivos originais divergente.")
         settings = json.loads(row["config"])
-        if settings.get("geometry"):
+        stimulus = None
+        if settings.get("geometry") or row.get("kind") == "demonstration":
             with connect() as db:
                 experiment = db.execute("SELECT stimulus FROM experiments WHERE id=?", (session["experiment_id"],)).fetchone()
             stimulus = json.loads(experiment["stimulus"]) if experiment and experiment["stimulus"] else None
-            dimensions = (settings['geometry'].get('stimulus_width_px'), settings['geometry'].get('stimulus_height_px'))
+            geometry = settings.get('geometry') or {}
+            dimensions = (geometry.get('stimulus_width_px'), geometry.get('stimulus_height_px'))
             expected = [(stimulus['width'], stimulus['height'])] if stimulus else []
-            if stimulus and settings.get('demonstration') and settings['geometry'].get('stimulus_coordinate_space') == 'display':
+            if stimulus and settings.get('demonstration') and geometry.get('stimulus_coordinate_space') == 'display':
                 expected.append((stimulus['height'], stimulus['width']))
             if stimulus and dimensions not in expected:
                 raise ValueError("Dimensões do estímulo na configuração divergem do vídeo do experimento.")
@@ -274,6 +300,27 @@ def execute(row):
                 raise ValueError("Processamento falhou: " + log.read())
         if not (run_root / "results/summary.json").is_file():
             raise ValueError("Processador não publicou o relatório.")
+        if row.get("kind") == "demonstration":
+            if not stimulus:
+                raise ValueError("Vídeo do estímulo indisponível para a demonstração.")
+            stimulus_path = root() / "videos" / stimulus["path"]
+            with stimulus_path.open("rb") as stream:
+                if hashlib.file_digest(stream, "sha256").hexdigest() != stimulus["sha256"]:
+                    raise ValueError("Integridade do vídeo do estímulo divergente.")
+            with (run_root / "renderer.log").open("w+") as log:
+                result = subprocess.run([str(python), str(directory / "demonstration.py"),
+                    "--camera", str((source / "face.mp4").resolve()), "--stimulus", str(stimulus_path.resolve()),
+                    "--results", str((run_root / "results").resolve()),
+                    "--output", str((run_root / "results/demonstration.mp4").resolve()),
+                    "--progress", str((run_root / "progress.json").resolve())],
+                    stdout=log, stderr=log, timeout=1800,
+                    env={**os.environ, "OMP_NUM_THREADS": "1", "OPENBLAS_NUM_THREADS": "1"})
+                if result.returncode:
+                    log.seek(0, 2)
+                    log.seek(max(0, log.tell() - 4000))
+                    raise ValueError("Não foi possível montar a demonstração: " + log.read())
+            if not (run_root / "results/demonstration.mp4").is_file():
+                raise ValueError("Renderizador não publicou o MP4.")
         status, error = "completed", None
     except (OSError, ValueError, subprocess.TimeoutExpired) as failure:
         status, error = "failed", str(failure)[-4000:]

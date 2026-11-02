@@ -31,3 +31,15 @@ Também é possível baixar com o container usando um volume gravável e `downlo
 `uv run --frozen python itracker.py inspect-video --video face.mp4 --output quadros.jsonl --rotation 0` decodifica o primeiro fluxo de vídeo e escreve um registro por quadro em JSONL. Informe a rotação horária necessária para deixá-lo em pé e acrescente `--mirrored` apenas se os pixels armazenados estiverem espelhados; o espelhamento é desfeito antes da rotação. O comando não modifica o vídeo e só publica a saída após a decodificação completa. O PTS inteiro e a base de tempo racional `[numerador, denominador]` são os informados pelo decodificador, inclusive `null` se ausentes; o índice não é usado para estimar tempo.
 
 Este diagnóstico **não executa detecção nem inferência**. Cada linha marca a previsão como indisponível e o tempo do estímulo como não comprovado. Ele pode ser usado em coletas antigas para inspecionar a decodificação, mas não valida sincronização, orientação, recortes ou precisão em imagens reais. A geometria, a associação temporal e os demais passos da issue 16 continuam pendentes.
+
+## Renderizar demonstração
+
+Com uma execução concluída em modo demonstração e `ffprobe` disponível no PATH:
+
+```sh
+uv run --frozen python demonstration.py \
+  --camera face.mp4 --stimulus estimulo.mp4 \
+  --results resultados --output demonstracao.mp4
+```
+
+O renderizador usa a configuração e as amostras da execução, sem rodar a rede novamente. Gera H.264 em 1440 × 896, sem áudio nem cabeçalho superior, com estímulo, marcador, câmera/recortes sincronizados e pipeline. Respeita a rotação de exibição e os timestamps variáveis do estímulo; não preenche intervalos sem amostra nem força pontos para dentro da imagem. A saída é publicada atomicamente, e a ausência de calibração ou pontos associados produz erro explícito. O webapp executa inferência e renderização em uma única solicitação.

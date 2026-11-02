@@ -132,3 +132,119 @@ def test_preparation_validation_failure_and_media_interval_are_explicit(tmp_path
     with connect() as db: db.execute("UPDATE processing_runs SET status='completed' WHERE id=?",(first['id'],))
     assert client.get(f"/api/runs/{first['id']}/at?time_ms=150").json()['sample'] is not None
     assert client.get(f"/api/runs/{first['id']}/at?time_ms=300").json()['sample'] is None
+
+
+def demo_setup(tmp_path, monkeypatch):
+    data = seed(tmp_path, monkeypatch)
+    config = {**data['config'], 'demonstration': True, 'geometry': {
+        'stimulus_width_px': 32, 'stimulus_height_px': 24, 'stimulus_coordinate_space': 'display'}}
+    stimulus = tmp_path / 'videos/stimulus.mp4'
+    stimulus.parent.mkdir()
+    stimulus.write_bytes(b'stimulus')
+    with connect() as db:
+        db.execute('INSERT INTO experiments(id,name,description,created_at,request_hash,stimulus) VALUES (?,?,?,?,?,?)',
+                   ('exp', 'Test', '', 'now', 'hash', json.dumps({'path': stimulus.name, 'width': 32, 'height': 24,
+                    'sha256': hashlib.sha256(b'stimulus').hexdigest()})))
+    monkeypatch.setattr(processing, 'collection_config', lambda session_id, data: {'config': config, 'issues': []})
+    return stimulus
+
+
+def run_queued(run_id):
+    with connect() as db:
+        db.execute("UPDATE processing_runs SET status='running' WHERE id=?", (run_id,))
+        row = dict(db.execute('SELECT * FROM processing_runs WHERE id=?', (run_id,)).fetchone())
+    processing.execute(row)
+
+
+def test_demo_job_generates_downloadable_mp4_and_supports_range_requests(tmp_path, monkeypatch):
+    from types import SimpleNamespace
+    demo_setup(tmp_path, monkeypatch)
+    calls = []
+    def processor(command, **kwargs):
+        calls.append(command)
+        if 'process' in command:
+            results = Path(command[command.index('--output') + 1])
+            results.mkdir()
+            (results / 'summary.json').write_text('{}')
+        else:
+            assert Path(command[1]).name == 'demonstration.py'
+            assert '--camera' in command and '--stimulus' in command and '--progress' in command
+            Path(command[command.index('--output') + 1]).write_bytes(b'complete-mp4')
+        return SimpleNamespace(returncode=0)
+    monkeypatch.setattr(processing.subprocess, 'run', processor)
+    first = client.post('/api/sessions/session/demonstration')
+    assert first.status_code == 202
+    run = first.json()
+    assert run['kind'] == 'demonstration' and not run['demonstration_available']
+    assert client.post('/api/sessions/session/demonstration').status_code == 409
+    url = '/api/runs/' + run['id']
+    assert client.get(url + '/demonstration').status_code == 409
+    run_queued(run['id'])
+    result = client.get(url).json()
+    assert result['status'] == 'completed' and result['demonstration_available']
+    assert len(calls) == 2
+    assert client.get(url + '/demonstration').headers['content-disposition'].startswith('inline')
+    download = client.get(url + '/demonstration?download=true')
+    assert download.content == b'complete-mp4' and download.headers['content-type'] == 'video/mp4'
+    assert download.headers['content-disposition'].startswith('attachment')
+    partial = client.get(url + '/demonstration', headers={'Range': 'bytes=0-3'})
+    assert partial.status_code == 206 and partial.content == b'comp'
+    assert client.get('/api/sessions/session/runs').json()[0]['demonstration_available']
+
+
+def test_demo_preparation_failures_and_render_failure_can_be_retried(tmp_path, monkeypatch):
+    from types import SimpleNamespace
+    demo_setup(tmp_path, monkeypatch)
+    prepared = processing.collection_config
+    monkeypatch.setattr(processing, 'collection_config', lambda *a: {'issues': ['missing_camera_instrumentation']})
+    assert client.post('/api/sessions/session/demonstration').status_code == 422
+    assert client.get('/api/sessions/session/runs').json() == []
+    monkeypatch.setattr(processing, 'collection_config', prepared)
+    def processor(command, **kwargs):
+        if 'process' in command:
+            results = Path(command[command.index('--output') + 1])
+            results.mkdir()
+            (results / 'summary.json').write_text('{}')
+            return SimpleNamespace(returncode=0)
+        kwargs['stderr'].write('sem amostras de calibração')
+        return SimpleNamespace(returncode=1)
+    monkeypatch.setattr(processing.subprocess, 'run', processor)
+    run = client.post('/api/sessions/session/demonstration').json()
+    run_queued(run['id'])
+    result = client.get('/api/runs/' + run['id']).json()
+    assert result['status'] == 'failed' and not result['demonstration_available']
+    assert 'calibração' in result['error']
+    assert client.get('/api/runs/' + run['id'] + '/demonstration').status_code == 409
+    assert client.post('/api/sessions/session/demonstration').status_code == 202
+
+
+def test_demo_verifies_stimulus_integrity_before_rendering(tmp_path, monkeypatch):
+    from types import SimpleNamespace
+    stimulus = demo_setup(tmp_path, monkeypatch)
+    def processor(command, **kwargs):
+        assert 'process' in command  # The renderer must not be invoked.
+        results = Path(command[command.index('--output') + 1])
+        results.mkdir()
+        (results / 'summary.json').write_text('{}')
+        return SimpleNamespace(returncode=0)
+    monkeypatch.setattr(processing.subprocess, 'run', processor)
+    run = client.post('/api/sessions/session/demonstration').json()
+    stimulus.write_bytes(b'changed')
+    run_queued(run['id'])
+    result = client.get('/api/runs/' + run['id']).json()
+    assert result['status'] == 'failed' and 'Integridade' in result['error']
+
+
+def test_existing_processing_runs_migrate_as_analysis_without_losing_history(tmp_path, monkeypatch):
+    import sqlite3
+    monkeypatch.setenv('EYE_TRACKER_DATA_DIR', str(tmp_path))
+    with sqlite3.connect(tmp_path / 'experiments.sqlite3') as db:
+        db.execute('CREATE TABLE processing_runs (id TEXT PRIMARY KEY,session_id TEXT,status TEXT,config TEXT,created_at TEXT,started_at TEXT,finished_at TEXT,error TEXT)')
+        db.execute("INSERT INTO processing_runs(id,session_id,status,config,created_at) VALUES ('old','session','completed','{}','now')")
+        db.execute('PRAGMA user_version = 2')
+    with connect() as db:
+        row = dict(db.execute('SELECT * FROM processing_runs').fetchone())
+        assert row['id'] == 'old' and row['kind'] == 'analysis' and row['status'] == 'completed'
+        assert db.execute('PRAGMA user_version').fetchone()[0] == 3
+    with connect() as db:
+        assert db.execute('SELECT count(*) FROM processing_runs').fetchone()[0] == 1
