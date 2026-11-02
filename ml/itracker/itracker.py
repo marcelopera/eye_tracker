@@ -1,64 +1,18 @@
 """Controlled-input inference with the published frozen iTracker Caffe model."""
 import argparse
-import hashlib
 import json
 import os
 from pathlib import Path
 import tempfile
-import urllib.request
 
 import av
 import cv2
 import numpy as np
 
 from video import camera_frames
-
-REVISION = "e4af90da3c4c9068fbce433fa648d1f9bc7a394b"
-BASE = f"https://raw.githubusercontent.com/CSAILVision/GazeCapture/{REVISION}/models"
-FILES = {
-    "itracker_deploy.prototxt": ("itracker_deploy.prototxt", "93a984a55829f07813859a068d9bf30ec8b3161d7121f715a9a9124b34cfdb76"),
-    "itracker25x_iter_92000.caffemodel": ("snapshots/itracker25x_iter_92000.caffemodel", "d748042ebd402a4b6418cdff44a6e64f9bca1256fd3761f7ddc68fd5519ef98a"),
-    "mean_face_224.mat": ("mean_images/mean_face_224.mat", "43dccf2f655259b23d3b2cd20907f5d7479e175215caba6bb310d3a4c3fc4756"),
-    "mean_left_224.mat": ("mean_images/mean_left_224.mat", "b502c0c7392cea761688625f2be8b0359fc9df74599ef744ce37b7dc68dcb470"),
-    "mean_right_224.mat": ("mean_images/mean_right_224.mat", "15167a33bc553cf624869be2717129362ea2a3445ba26676927a6f63205e2ef0"),
-}
+from model_assets import FILES, REVISION, digest, download, verify
 INPUTS = {"face": (1, 3, 224, 224), "left": (1, 3, 224, 224), "right": (1, 3, 224, 224), "grid": (1, 625)}
 BLOBS = {"face": "image_face", "left": "image_left", "right": "image_right", "grid": "facegrid"}
-
-
-def digest(path):
-    h = hashlib.sha256()
-    with path.open("rb") as source:
-        for chunk in iter(lambda: source.read(1024 * 1024), b""):
-            h.update(chunk)
-    return h.hexdigest()
-
-
-def verify(directory, names=FILES):
-    for name in names:
-        path = directory / name
-        if not path.is_file() or digest(path) != FILES[name][1]:
-            raise ValueError(f"Arquivo ausente ou SHA-256 incompatível: {path}; execute download")
-
-
-def download(directory):
-    directory.mkdir(parents=True, exist_ok=True)
-    for name, (remote, expected) in FILES.items():
-        destination = directory / name
-        if destination.is_file() and digest(destination) == expected:
-            destination.chmod(0o644)
-            continue
-        fd, temporary = tempfile.mkstemp(dir=directory, prefix=".download-")
-        try:
-            with os.fdopen(fd, "wb") as output, urllib.request.urlopen(f"{BASE}/{remote}", timeout=120) as response:
-                while chunk := response.read(1024 * 1024):
-                    output.write(chunk)
-            if digest(Path(temporary)) != expected:
-                raise ValueError(f"SHA-256 incompatível para {name}")
-            os.chmod(temporary, 0o644)
-            os.replace(temporary, destination)
-        finally:
-            Path(temporary).unlink(missing_ok=True)
 
 
 class Model:
@@ -147,18 +101,7 @@ def main():
             print(json.dumps(ProcessingConfig.model_json_schema(), ensure_ascii=False, indent=2))
             return
         if args.command == "download-detector":
-            from preprocess import LANDMARKER_URL, LANDMARKER_SHA256
-            args.models.mkdir(parents=True, exist_ok=True)
-            fd, temporary = tempfile.mkstemp(dir=args.models)
-            try:
-                with os.fdopen(fd, "wb") as output, urllib.request.urlopen(LANDMARKER_URL, timeout=120) as response:
-                    output.write(response.read())
-                if digest(Path(temporary)) != LANDMARKER_SHA256:
-                    raise ValueError("SHA-256 do detector incompatível")
-                os.chmod(temporary, 0o644)
-                os.replace(temporary, args.models / "face_landmarker.task")
-            finally:
-                Path(temporary).unlink(missing_ok=True)
+            download(args.models, ["face_landmarker.task"])
             return
         if args.command == "process":
             from pipeline import process_session

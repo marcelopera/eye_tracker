@@ -59,7 +59,7 @@ O formato recebido é o `sessao.json` original do protótipo com `face.mp4`, nã
 
 ## Processamento do olhar
 
-A API agora possui fila persistente local de execuções e consulta/exportação dos resultados. Veja [pipeline: instalação, configuração e rotas](../../docs/pipeline.md). O Compose inclui o runtime CPU e monta os modelos oficiais separadamente. A capability `gaze_processing` indica a presença do runtime; modelos ausentes ou incompatíveis geram falha explícita na execução.
+A API agora possui fila persistente local de execuções e consulta/exportação dos resultados. Veja [pipeline: instalação, configuração e rotas](../../docs/pipeline.md). O Compose inclui o runtime CPU e prepara os seis arquivos dos modelos automaticamente no serviço `models`, com hashes fixados e cache no volume `gaze_models`. A API aguarda a preparação e monta o volume somente para leitura. A capability `gaze_processing` indica a presença do runtime; modelos ausentes ou incompatíveis continuam sendo rejeitados na execução.
 
 Para construir o estágio de testes, use a raiz como contexto: `docker build -f services/api/Dockerfile --target test -t eye-tracker-api-test .`.
 

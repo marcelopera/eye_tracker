@@ -8,35 +8,34 @@ Sistema de pesquisa que coleta vídeo no Android e processa estimativas de olhar
 
 ## Subir a base web
 
-Requer Docker Engine com Compose ou Docker Desktop com integração WSL2. Node, Python e uv são fornecidos pelas imagens; não é necessário instalá-los no host para subir a base.
-
-Na raiz do repositório, os builds precisam dos lockfiles do webapp e da API.
-Se o lockfile Python ainda não existir, gere-o primeiro:
+Em uma máquina nova, instale Git e Docker Engine com Compose ou Docker Desktop com integração WSL2. Depois:
 
 ```sh
-bash scripts/gerar-lock-api.sh
-```
-
-Depois, inicie a base:
-
-```sh
+git clone https://github.com/marcelopera/eye_tracker.git
+cd eye_tracker
 docker compose up --build -d --wait
 ```
+
+Node, Python, uv, FFmpeg e as bibliotecas de processamento são fornecidos pelas imagens. Os lockfiles já estão no repositório. Na primeira inicialização, o serviço `models` baixa os seis arquivos do iTracker/MediaPipe (cerca de 38 MB), confere seus SHA-256 e os guarda no volume `gaze_models`. É necessário acesso à internet para os builds e esse primeiro download. A API só inicia após a preparação dos modelos; o webapp aguarda a API ficar saudável.
+
+Nas próximas inicializações, os arquivos válidos são reutilizados sem novo download. Se um modelo estiver ausente ou corrompido, apenas esse arquivo será baixado novamente. Os pesos permanecem fora do Git e das imagens. A licença dos modelos está descrita no [README do processamento](ml/itracker/README.md).
 
 - Webapp: [http://localhost:8080](http://localhost:8080).
 - API pelo mesmo endereço: [estado](http://localhost:8080/api/health) e [informações](http://localhost:8080/api/info).
 - Documentação interativa: [http://localhost:8080/docs](http://localhost:8080/docs).
 - Contrato OpenAPI: [http://localhost:8080/openapi.json](http://localhost:8080/openapi.json).
 
-A interface permite criar experimentos, receber coletas Android e gerar demonstrações em MP4. O protocolo é fixo e aplicado automaticamente: marcadores, calibração, descanso, estímulo e validação. Depois de receber uma coleta, clique em **Gerar demonstração em MP4**: rotação, sincronização e calibração são preparadas automaticamente com valores aproximados, e o servidor monta o vídeo em segundo plano. Ao terminar, é possível assistir no webapp ou clicar em **Baixar MP4**. O vídeo mostra estímulo com ponto de olhar estimado, câmera sincronizada, recortes de rosto/olhos, pipeline e erro de validação, sem cabeçalho de marca. A [coleta instrumentada](docs/coleta-instrumentada.md) prepara os dados para o piloto. A [pipeline experimental](docs/pipeline.md) usa iTracker congelado e MediaPipe. Baixe e verifique os modelos conforme essa documentação antes de gerar demonstrações.
+A interface permite criar experimentos, receber coletas Android e gerar demonstrações em MP4. O protocolo é fixo e aplicado automaticamente: marcadores, calibração, descanso, estímulo e validação. Depois de receber uma coleta, clique em **Gerar demonstração em MP4**: rotação, sincronização e calibração são preparadas automaticamente com valores aproximados, e o servidor monta o vídeo em segundo plano. Ao terminar, é possível assistir no webapp ou clicar em **Baixar MP4**. O vídeo mostra estímulo com ponto de olhar estimado, câmera sincronizada, recortes de rosto/olhos, pipeline e erro de validação, sem cabeçalho de marca. A [coleta instrumentada](docs/coleta-instrumentada.md) prepara os dados para o piloto. A [pipeline experimental](docs/pipeline.md) usa iTracker congelado e MediaPipe.
 
-São dois containers: o webapp servido pelo Nginx e uma API Python. O Nginx encaminha as chamadas para a API pela rede interna. O Compose aguarda a API passar pelo healthcheck antes de iniciar a interface.
+São dois serviços permanentes (webapp Nginx e API Python) e um serviço de preparação (`models`) que termina com sucesso após conferir os arquivos. O Nginx encaminha as chamadas para a API pela rede interna.
 
 ```sh
 docker compose ps
 docker compose logs -f
 docker compose down
 ```
+
+Se a preparação falhar, consulte `docker compose logs models`, corrija a conexão e repita o comando de inicialização. Downloads têm até três tentativas por arquivo; dados só são publicados após a conferência do hash. `docker compose down` mantém modelos e coletas. `docker compose down -v` apaga os dois volumes, incluindo os dados dos experimentos.
 
 Para mudar a porta ou permitir acesso pela rede local, copie [.env.example](.env.example) para `.env` e ajuste `WEB_PORT` e `WEB_HOST`. O endereço padrão é `127.0.0.1`; para a LAN, use `WEB_HOST=0.0.0.0` e o IP do PC. Após mudar essas opções, execute novamente o comando de inicialização.
 
