@@ -1,0 +1,9 @@
+cff-version: 1.2.0
+message: "Se usar este software na pesquisa, cite-o como indicado abaixo."
+type: software
+title: "Eye tracking por vídeo no smartphone"
+authors:
+  - family-names: Pera
+    given-names: Marcelo
+repository-code: "https://github.com/marcelopera/eye_tracker"
+license: MIT

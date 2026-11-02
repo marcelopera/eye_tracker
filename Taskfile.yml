@@ -1,0 +1,50 @@
+version: '3'
+
+tasks:
+  setup:
+    desc: Verifica pré-requisitos locais; SDK Android é configurado no Android Studio
+    cmds:
+      - task: doctor
+  doctor:
+    desc: Diagnostica Docker, rede e ADB
+    cmds:
+      - cmd: python scripts/doctor.py
+        platforms: [windows]
+      - cmd: python3 scripts/doctor.py
+        platforms: [linux, darwin]
+  test:
+    desc: Executa testes unitários Android
+    dir: apps/android
+    cmds:
+      - cmd: .\gradlew.bat :app:testDebugUnitTest
+        platforms: [windows]
+      - cmd: ./gradlew :app:testDebugUnitTest
+        platforms: [linux, darwin]
+  lint:
+    desc: Executa lint Android
+    dir: apps/android
+    cmds:
+      - cmd: .\gradlew.bat :app:lintDebug
+        platforms: [windows]
+      - cmd: ./gradlew :app:lintDebug
+        platforms: [linux, darwin]
+  fmt:
+    desc: Informa o estado da formatação
+    cmds:
+      - echo 'Nenhum formatador foi configurado para o projeto.'
+      - exit 1
+  up:
+    desc: Informa o estado dos serviços
+    cmds:
+      - echo 'Servidor e Docker Compose ainda não foram implementados.'
+      - exit 1
+  down:
+    desc: Informa o estado dos serviços
+    cmds:
+      - echo 'Servidor e Docker Compose ainda não foram implementados.'
+      - exit 1
+  logs:
+    desc: Informa o estado dos serviços
+    cmds:
+      - echo 'Servidor e Docker Compose ainda não foram implementados.'
+      - exit 1
