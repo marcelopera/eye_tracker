@@ -76,3 +76,6 @@ test-results/
 Thumbs.db
 *.log
 *.tmp
+*.caffemodel
+*.solverstate
+*.ckpt.*

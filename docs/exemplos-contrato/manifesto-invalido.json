@@ -1,0 +1,11 @@
+{
+  "schema_version": 2,
+  "session_id": "sessao-invalida",
+  "experiment_id": "experimento-sintetico",
+  "status": "completed",
+  "camera_video": {"path": "../camera.mp4", "sha256": "invalido"},
+  "events": {"path": "eventos.json", "sha256": "1111111111111111111111111111111111111111111111111111111111111111"},
+  "capture": {"rotation_degrees": 0, "mirrored": false},
+  "device_profile": null,
+  "synchronization": null
+}
