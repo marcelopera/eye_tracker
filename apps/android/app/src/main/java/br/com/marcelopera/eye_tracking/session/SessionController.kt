@@ -20,6 +20,7 @@ class SessionController(
     private val recordingEngines: RecordingEngineFactory,
     private val scope: CoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate),
     private val timeSource: () -> Long = { SystemClock.elapsedRealtimeNanos() },
+    private val clockSampleSource: (() -> ClockSample)? = null,
 ) {
     interface Listener {
         fun onPhase(token: Long, phase: SessionPhase)
@@ -30,6 +31,7 @@ class SessionController(
     private var active: ActiveSession? = null
     private var setupJob: Job? = null
     private var protocolJob: Job? = null
+    private var clockJob: Job? = null
 
     val isActive: Boolean
         get() = active != null
@@ -79,6 +81,15 @@ class SessionController(
         }
         session.handle = handle
         log(session, "sessao_iniciada")
+        sampleClocks(session)
+        if (clockSampleSource != null) {
+            clockJob = scope.launch {
+                while (true) {
+                    delay(CLOCK_SAMPLE_INTERVAL_MS)
+                    sampleClocks(session)
+                }
+            }
+        }
         store.save(handle, config.experimentId, completed = false, events = session.events.toList())
 
         val engine = recordingEngines.create()
@@ -211,6 +222,9 @@ class SessionController(
     ) {
         if (session.finalizeStarted) return
         session.finalizeStarted = true
+        clockJob?.cancel()
+        clockJob = null
+        sampleClocks(session)
         listener.onPhase(session.token, SessionPhase.Finalizing)
         host?.showFinalizing()
 
@@ -226,6 +240,7 @@ class SessionController(
             } catch (_: Throwable) {
                 FinalizeInfo(true, FINALIZE_ERROR_UNKNOWN)
             }
+            sampleClocks(session)
             if (session.recordingStarted) {
                 if (finalize.hasError) {
                     log(session, "erro_gravacao", finalize.errorCode.toString())
@@ -282,6 +297,15 @@ class SessionController(
         session.events += SessionEvent(name, timeSource(), ELAPSED_CLOCK, data)
     }
 
+    private fun sampleClocks(session: ActiveSession) {
+        val sample = clockSampleSource?.invoke() ?: return
+        // Versioned tuple: monotonic time, elapsed-realtime before and after it.
+        session.events += SessionEvent(
+            "amostra_relogios_v1", sample.elapsedBeforeNanos, ELAPSED_CLOCK,
+            "${sample.monotonicNanos},${sample.elapsedBeforeNanos},${sample.elapsedAfterNanos}",
+        )
+    }
+
     private fun logFrame(
         session: ActiveSession,
         name: String,
@@ -306,6 +330,7 @@ class SessionController(
 
     private companion object {
         const val POINT_MS = 2_000L
+        const val CLOCK_SAMPLE_INTERVAL_MS = 1_000L
         const val REST_MS = 2_000L
         const val FLASH_ON_MS = 200L
         const val FLASH_OFF_MS = 1_000L

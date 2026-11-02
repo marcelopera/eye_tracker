@@ -109,6 +109,19 @@ def test_session_receipt_and_retry(tmp_path, monkeypatch):
     local_id = str(uuid.uuid4())
     payload = {"experiment_id": experiment["id"], "local_id": local_id, "participant_code": "P01"}
     session = client.post("/api/sessions", json=payload).json()
+    listed = client.get(url + "/sessions").json()
+    assert len(listed) == 1
+    assert listed[0]["id"] == session["id"] and listed[0]["participant_code"] == "P01"
+    assert listed[0]["receipt_status"] == "pending" and listed[0]["processing_status"] == "unavailable"
+    assert client.get(f"/api/sessions/{session['id']}/video").status_code == 409
+    assert client.get(f"/api/sessions/{session['id']}/events").status_code == 409
+    assert client.get(f"/api/sessions/{session['id']}").json() == listed[0]
+    assert client.get(url + "/sessions?limit=1&offset=1").json() == []
+    assert client.get(url + "/sessions?limit=0").status_code == 422
+    assert client.get("/api/experiments/missing/sessions").status_code == 404
+    assert client.get("/api/sessions/missing").status_code == 404
+    other = client.post("/api/experiments", json={"name": "Outro"}, headers={"Idempotency-Key": "other"}).json()
+    assert client.get(f"/api/experiments/{other['id']}/sessions").json() == []
     assert client.post("/api/sessions", json=payload).json() == session
     assert client.post("/api/sessions", json={**payload, "participant_code": "P02"}).status_code == 409
     metadata = json.dumps({"experimento": experiment["id"], "coleta_local": local_id, "estado": "concluida", "eventos": []}).encode()
@@ -118,6 +131,9 @@ def test_session_receipt_and_retry(tmp_path, monkeypatch):
     upload_url = f"/api/sessions/{session['id']}/files"
     assert client.put(upload_url, data={**hashes, "events_sha256": "0" * 64}, files=files).status_code == 422
     assert client.put(upload_url, data=hashes, files=files).json()["received"] is True
+    assert client.get(f"/api/sessions/{session['id']}").json()["receipt_status"] == "received"
+    assert client.get(f"/api/sessions/{session['id']}/events").content == metadata
+    assert client.get(f"/api/sessions/{session['id']}/video", headers={"Range": "bytes=0-9"}).content == video_bytes[:10]
     assert client.put(upload_url, data=hashes, files=files).json()["received"] is True
     assert client.put(upload_url, data={**hashes, "video_sha256": "0" * 64}, files=files).status_code == 409
     assert (tmp_path / "sessions" / session["id"] / "face.mp4").read_bytes() == video_bytes

@@ -45,6 +45,7 @@ import br.com.marcelopera.eye_tracking.session.SessionPhase
 import br.com.marcelopera.eye_tracking.session.SessionResult
 import br.com.marcelopera.eye_tracking.session.TargetDisplay
 import br.com.marcelopera.eye_tracking.session.VideoPlayback
+import br.com.marcelopera.eye_tracking.session.readClockSample
 import br.com.marcelopera.eye_tracking.ui.CompletionScreen
 import br.com.marcelopera.eye_tracking.ui.Destination
 import br.com.marcelopera.eye_tracking.ui.IdentificationScreen
@@ -134,6 +135,7 @@ class MainActivity : AppCompatActivity(), SessionHost {
             recordingEngines = RecordingEngineFactory {
                 CameraRecordingEngine(this@MainActivity, this@MainActivity)
             },
+            clockSampleSource = ::readClockSample,
         )
         controller.attachHost(this)
         onBackPressedDispatcher.addCallback(this, backCallback)

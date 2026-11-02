@@ -1,4 +1,5 @@
 import { FormEvent, useCallback, useEffect, useRef, useState } from 'react';
+import Sessions from './Sessions';
 
 type Stimulus = { name: string; size: number; duration: number; width: number; height: number; codec: string };
 type Experiment = { id: string; name: string; description: string; state: string; code: string | null; stimulus: Stimulus | null; protocol: { label: string; phases: {name: string}[] } | null; pending: string[] };
@@ -98,6 +99,7 @@ export default function Experiments() {
         {selected.protocol && <p>Fases: {selected.protocol.phases.map(phase => phase.name.replace(/_/g, ' ')).join(' → ')}. Alvos: 2 segundos por posição; descanso: 2 segundos; marcadores: dois flashes de 200 ms.</p>}
         {selected.pending.length > 0 && <div className="experiment-pending" role="status"><strong>Para publicar:</strong><ul>{selected.pending.map(item => <li key={item}>{item}</li>)}</ul></div>}
         {published ? <p role="status">Publicado. Código: <strong>{selected.code}</strong></p> : <button className="refresh-button" type="button" disabled={busy || selected.pending.length > 0} onClick={() => void action('publish', 'POST')}>{publishing ? 'Publicando…' : 'Publicar experimento'}</button>}
+        {published && <Sessions key={selected.id} experimentId={selected.id} />}
       </>}
       <p><button className="refresh-button" type="button" disabled={busy} onClick={() => { setEditing(false); setError(''); void load(); }}>Voltar à lista</button></p>
     </> : <>

@@ -14,6 +14,9 @@ Acesse [localhost:8080](http://localhost:8080). O build compila TypeScript e ger
 arquivos estáticos; o container final utiliza Nginx e encaminha as chamadas
 relativas à API pela rede interna do Compose.
 
+Ao abrir um experimento publicado, a interface lista suas coletas e distingue arquivos pendentes de recebidos. A inferência e a inspeção de resultados ainda não estão disponíveis.
+É possível reproduzir o vídeo original da câmera e baixar os eventos originais de uma coleta recebida. Os tempos desses eventos não estão sincronizados com o estímulo.
+
 O [package.json](package.json) declara os comandos de desenvolvimento e build.
 O lockfile é usado com npm ci no [Dockerfile](Dockerfile), sem exigir Node no host.
 

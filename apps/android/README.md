@@ -4,6 +4,8 @@ O aplicativo consulta um experimento publicado pelo código, baixa o estímulo e
 
 Para uso na rede local configure `WEB_HOST=0.0.0.0` no `.env` do Compose e informe no celular o endereço do computador, por exemplo `http://192.168.1.10:8080`. O serviço atual não possui autenticação nem TLS: a gravação e o código do participante trafegam em texto aberto via HTTP. Use apenas dados sintéticos em rede controlada até configurar proteção adequada. O recebimento não significa processamento ou validação científica.
 
+Novas coletas registram `amostra_relogios_v1` no início, aproximadamente a cada segundo e na finalização. Em `dados`, a tupla contém `System.nanoTime`, `elapsedRealtimeNanos` antes e depois da leitura, em nanossegundos. A diferença entre as duas leituras de elapsed delimita o intervalo de medição; não é uma medida do erro da câmera ou da tela. Os eventos mantêm seus relógios originais. Essas amostras não relacionam os PTS do vídeo da câmera nem comprovam quais quadros do estímulo foram apresentados: a sincronização continua não validada, inclusive no Android 13. Coletas antigas não são alteradas.
+
 O protocolo piloto apresenta cinco posições de calibração duas vezes, por dois segundos cada, seguidas do vídeo e de cinco posições de validação diferentes. Os valores são provisórios. Os arquivos ficam em `files/sessoes/<id>/`, no armazenamento privado; o backup está desativado.
 
 ## Organização do código
