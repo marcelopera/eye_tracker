@@ -37,7 +37,7 @@ COPY --from=pipeline /opt/pipeline /opt/pipeline
 ENV EYE_TRACKER_PIPELINE_DIR=/opt/pipeline EYE_TRACKER_MODELS_DIR=/models
 
 RUN useradd --create-home --uid 10001 --user-group app \
-    && mkdir -p /data/tmp && chown -R app:app /data
+    && mkdir -p /data/tmp /models && chown -R app:app /data /models
 ENV EYE_TRACKER_DATA_DIR=/data TMPDIR=/data/tmp
 USER app
 

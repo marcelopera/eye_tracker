@@ -31,7 +31,11 @@ jobs:
       - name: Test video pipeline
         run: uv run --directory ml/itracker --frozen --group dev python -m pytest
       - name: Build and start the stack
-        run: docker compose up --build -d --wait --wait-timeout 120
+        run: docker compose up --build -d --wait --wait-timeout 300
+      - name: Verify downloaded models and inference
+        run: docker compose exec -T api /opt/pipeline/.venv/bin/python /opt/pipeline/itracker.py smoke --models /models
+      - name: Reuse model cache without network
+        run: docker compose run --rm --no-deps -e HTTPS_PROXY=http://127.0.0.1:9 -e HTTP_PROXY=http://127.0.0.1:9 -e NO_PROXY= models
       - name: Check public routes
         run: |
           curl --fail --silent --show-error http://localhost:8080/

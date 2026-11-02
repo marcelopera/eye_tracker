@@ -6,12 +6,21 @@ Os resultados científicos dependem das medidas físicas, correspondência tempo
 
 O modelo e as médias pertencem aos autores do GazeCapture, cuja [licença](https://github.com/CSAILVision/GazeCapture/blob/e4af90da3c4c9068fbce433fa648d1f9bc7a394b/LICENSE.md) restringe uso e redistribuição e exige citação. Antes de baixar ou usar, confira a licença. Os SHA-256 são fingerprints calculados localmente no estudo do plano, não checksums publicados pelos autores. Os arquivos não são incluídos no repositório ou na imagem.
 
+## Preparação automática com Docker Compose
+
+Na raiz, basta executar `docker compose up --build -d --wait`. O serviço `models` prepara os pesos, a definição da rede, as três médias e o Face Landmarker no volume `gaze_models`. Verifica os seis SHA-256 antes de liberar a API, que recebe esse volume somente para leitura. Arquivos válidos são reutilizados sem acesso à rede; ausentes ou alterados são baixados novamente. Downloads são publicados atomicamente e falhas de conexão têm até três tentativas. Não é necessário instalar Python no host nem preencher a pasta local `modelos/itracker`.
+
+O manifesto e a preparação estão em [model_assets.py](model_assets.py). Para uso fora do Compose, `python model_assets.py --models DIRETORIO` prepara todos os arquivos usando apenas a biblioteca padrão do Python 3.12. Os comandos legados `itracker.py download` (rede e médias) e `download-detector` continuam disponíveis e usam o mesmo manifesto e verificador.
+
+## Execução fora do Compose
+
 Com Python 3.12 e uv, nesta pasta:
 
 ```sh
 uv sync --frozen --group dev
 uv run --frozen python -m pytest
 uv run --frozen python itracker.py download --models ../../modelos/itracker
+uv run --frozen python itracker.py download-detector --models ../../modelos/itracker
 uv run --frozen python itracker.py smoke --models ../../modelos/itracker
 ```
 

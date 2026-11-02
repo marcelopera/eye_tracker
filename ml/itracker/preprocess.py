@@ -5,10 +5,7 @@ import cv2
 import numpy as np
 from scipy.io import loadmat
 
-from itracker import verify
-
-LANDMARKER_SHA256 = "64184e229b263107bc2b804c6625db1341ff2bb731874b0bcc2fe6544e0bc9ff"
-LANDMARKER_URL = "https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task"
+from model_assets import LANDMARKER_SHA256, LANDMARKER_URL, digest, verify
 
 
 class DetectionFailure(ValueError):
@@ -50,7 +47,6 @@ def face_grid(box, width, height):
 class Preprocessor:
     def __init__(self, directory):
         import mediapipe as mp
-        from itracker import digest
         task = directory / "face_landmarker.task"
         if not task.is_file() or digest(task) != LANDMARKER_SHA256:
             raise ValueError("Face Landmarker ausente ou alterado; execute download-detector")
