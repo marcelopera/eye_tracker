@@ -34,10 +34,12 @@ class SessionView(BaseModel):
 
 
 def session_view(row) -> SessionView:
+    with connect() as db:
+        latest = db.execute("SELECT status FROM processing_runs WHERE session_id=? ORDER BY rowid DESC LIMIT 1", (row["id"],)).fetchone()
     return SessionView(id=row["id"], experiment_id=row["experiment_id"], local_id=row["local_id"],
                        participant_code=row["participant_code"],
                        receipt_status="received" if row["video_hash"] and row["events_hash"] else "pending",
-                       processing_status="unavailable")
+                       processing_status=latest["status"] if latest else "unavailable")
 
 
 @router.get("/experiments/{experiment_id}/sessions", response_model=list[SessionView])

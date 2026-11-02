@@ -10,6 +10,7 @@ from pydantic import BaseModel
 
 from app.experiments import router as experiments_router
 from app.sessions import router as sessions_router
+from app.processing import router as processing_router, lifespan, enabled
 
 SERVICE_NAME = "eye-tracker-api"
 VERSION = "0.1.0"
@@ -35,6 +36,7 @@ class InfoResponse(BaseModel):
 
 app = FastAPI(
     title="Eye Tracker API",
+    lifespan=lifespan,
     version=VERSION,
     docs_url="/docs",
     openapi_url="/openapi.json",
@@ -60,6 +62,7 @@ async def limit_upload(request: Request, call_next):
 
 app.include_router(experiments_router)
 app.include_router(sessions_router)
+app.include_router(processing_router)
 
 
 @app.get("/api/health", response_model=HealthResponse, tags=["service"])
@@ -75,5 +78,5 @@ def info() -> InfoResponse:
         name="Eye Tracker",
         version=VERSION,
         description="Base de coleta e processamento de olhar.",
-        capabilities=Capabilities(session_upload=True, gaze_processing=False),
+        capabilities=Capabilities(session_upload=True, gaze_processing=enabled()),
     )

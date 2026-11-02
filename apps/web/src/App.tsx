@@ -256,7 +256,7 @@ function App() {
         <aside className="status-note" aria-label="Sobre o estado do projeto">
           <span className="note-mark" aria-hidden="true">i</span>
           <p>
-            A coleta no aparelho ainda precisa de validação. O envio de sessões e o processamento do olhar serão disponibilizados nas próximas etapas.
+            A coleta no aparelho e a precisão das estimativas exigem validação. As análises ficam disponíveis nas coletas recebidas; coordenadas e tempos dependem das medidas e evidências fornecidas.
           </p>
         </aside>
 

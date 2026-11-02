@@ -17,6 +17,10 @@ def test_input_validation_and_named_blobs(tmp_path, monkeypatch):
     class Net:
         def __init__(self):
             self.blobs = {}
+        def setPreferableBackend(self, value):
+            pass
+        def setPreferableTarget(self, value):
+            pass
         def setInput(self, data, name):
             self.blobs[name] = data
         def forward(self, outputs):

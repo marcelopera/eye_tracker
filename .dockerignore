@@ -1,0 +1,14 @@
+.git
+**/.venv
+**/node_modules
+**/__pycache__
+**/.pytest_cache
+**/build
+**/.gradle
+**/dist
+modelos
+runtime
+data
+secrets
+.env
+.env.*

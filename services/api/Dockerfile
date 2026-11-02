@@ -11,22 +11,30 @@ ENV UV_COMPILE_BYTECODE=1 \
 
 FROM tooling AS base
 
-COPY pyproject.toml uv.lock ./
+COPY services/api/pyproject.toml services/api/uv.lock ./
 
 FROM base AS test
 
 RUN apt-get update && apt-get install -y --no-install-recommends ffmpeg && rm -rf /var/lib/apt/lists/*
-COPY app ./app
-COPY tests ./tests
+COPY services/api/app ./app
+COPY services/api/tests ./tests
 RUN uv sync --frozen --group dev --no-install-project
 RUN uv run --frozen --group dev python -m pytest
 
+FROM tooling AS pipeline
+WORKDIR /opt/pipeline
+COPY ml/itracker/pyproject.toml ml/itracker/uv.lock ./
+RUN uv sync --frozen --no-dev --no-install-project
+COPY ml/itracker/*.py ./
+
 FROM base AS runtime
 
-RUN apt-get update && apt-get install -y --no-install-recommends ffmpeg && rm -rf /var/lib/apt/lists/*
+RUN apt-get update && apt-get install -y --no-install-recommends ffmpeg libglib2.0-0 libgl1 libegl1 libgles2 libportaudio2 && rm -rf /var/lib/apt/lists/*
 RUN uv sync --frozen --no-dev --no-install-project
 
-COPY app ./app
+COPY services/api/app ./app
+COPY --from=pipeline /opt/pipeline /opt/pipeline
+ENV EYE_TRACKER_PIPELINE_DIR=/opt/pipeline EYE_TRACKER_MODELS_DIR=/models
 
 RUN useradd --create-home --uid 10001 --user-group app \
     && mkdir -p /data/tmp && chown -R app:app /data

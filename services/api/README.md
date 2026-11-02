@@ -34,7 +34,7 @@ uv run --frozen uvicorn app.main:app --host 0.0.0.0 --port 8000
 Para executar em container, a partir da raiz do repositório:
 
 ```sh
-docker build -t eye-tracker-api services/api
+docker build -f services/api/Dockerfile -t eye-tracker-api .
 docker run --rm -p 8000:8000 -v eye-tracker-data:/data eye-tracker-api
 ```
 
@@ -44,7 +44,7 @@ na raiz. O Compose fornece Python e uv nas imagens e publica a API pelo webapp.
 Para executar os testes em um container, sem instalar Python no host:
 
 ```sh
-docker build --target test -t eye-tracker-api-test services/api
+docker build -f services/api/Dockerfile --target test -t eye-tracker-api-test .
 ```
 
 ## Recebimento provisório de coletas
@@ -53,6 +53,12 @@ docker build --target test -t eye-tracker-api-test services/api
 
 O formato recebido é o `sessao.json` original do protótipo com `face.mp4`, não um manifesto v1. Não há dados suficientes para afirmar sincronização, perfil físico ou validade científica. A API não autentica clientes; o HTTP local não cifra os dados. Use dados sintéticos em rede controlada até haver autenticação e TLS.
 
-`GET /api/experiments/{id}/sessions` lista as sessões do experimento, com paginação por `limit` (1 a 100, padrão 50) e `offset`; `GET /api/sessions/{id}` consulta uma sessão. `receipt_status` distingue cadastro pendente de arquivos recebidos e `processing_status` é sempre `unavailable`: nenhuma inferência é executada. O recebimento não comprova sincronização nem qualidade científica.
+`GET /api/experiments/{id}/sessions` lista as sessões do experimento, com paginação por `limit` (1 a 100, padrão 50) e `offset`; `GET /api/sessions/{id}` consulta uma sessão. `receipt_status` distingue cadastro pendente de arquivos recebidos e `processing_status` indica o estado da última execução (ou `unavailable` quando ainda não há execução). O recebimento não comprova sincronização nem qualidade científica.
 
 `GET /api/sessions/{id}/video` e `/events` disponibilizam os arquivos originais recebidos para inspeção; não são resultados de inferência. Assim como as demais rotas, não exigem autenticação.
+
+## Processamento do olhar
+
+A API agora possui fila persistente local de execuções e consulta/exportação dos resultados. Veja [pipeline: instalação, configuração e rotas](../../docs/pipeline.md). O Compose inclui o runtime CPU e monta os modelos oficiais separadamente. A capability `gaze_processing` indica a presença do runtime; modelos ausentes ou incompatíveis geram falha explícita na execução.
+
+Para construir o estágio de testes, use a raiz como contexto: `docker build -f services/api/Dockerfile --target test -t eye-tracker-api-test .`.
