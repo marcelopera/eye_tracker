@@ -49,8 +49,11 @@ htmlcov/
 target/
 build/
 .gradle/
+.gradle-test-kit/
 .kotlin/
 .cxx/
+.externalNativeBuild/
+*.class
 *.apk
 *.aab
 *.hprof
